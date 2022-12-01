@@ -253,14 +253,14 @@ if __name__ == '__main__':
     if  sys.argv[4]!= 'None':
         NMI_max,Q_Max,Q_avg ,Q_std,time_run = de_main()
         print("NMI_max",NMI_max)
-        print("Q_max",Q_Max)
-        print("Q_avg",Q_avg)
-        print("Q_std",Q_std)
+        print("the value of Q_max",Q_Max)
+        print("the value of Q_avg",Q_avg)
+        print("the value of Q_std",Q_std)
         print("time ",time_run)
     elif sys.argv[4] == 'None' :
         Q_max, Q_avg, Q_std,time_run = de_main()
-        print("Q_max",Q_max)
-        print("Q_avg",Q_avg)
-        print("Q_std",Q_std)
-        print("time ",time_run) 
+        print("the value of Q_max",Q_max)
+        print("the value of Q_avg",Q_avg)
+        print("the value of Q_std",Q_std)
+        print("the value of time ",time_run) 
      
