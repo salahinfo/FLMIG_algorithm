@@ -7,6 +7,6 @@ strong intensification with reasonable computation time and . The experimental r
 approach.
 
 The cmmd file has the commands to run the algorithm so download the project and open the project then set the commands in the terminel as showing below : 
-python3  FLMIG.py  "path of dataset"  "number of iterations"  "beta"  "ground truth if the dataset has it and None if there is no ground truth"  "number_of_runtime"
+python3 ** FLMIG.py ** "path of dataset" ** "number of iterations" ** "beta" ** "ground truth if the dataset has it and None if there is no ground truth"**  "number_of_runtime"
 
 Example : python3 **FLMIG.py ** "path of the dataset" ** 100 ** 0.5 ** "path of the ground-truth file" ** 50
