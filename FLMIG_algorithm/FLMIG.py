@@ -7,6 +7,9 @@ from sklearn.metrics.cluster import normalized_mutual_info_score
 import sys
 import math
 import networkx.algorithms.community as nx_comm
+from multiprocessing.pool import Pool
+import itertools 
+import functools
 
 
 class Fast_local_Move_IG(GraphTolls) :
@@ -18,6 +21,40 @@ class Fast_local_Move_IG(GraphTolls) :
         self.n = G.number_of_nodes()
         self.Mod_val = 0
 
+    def Delta_Q (self,node,*cluster):
+        
+        #print(arg,node)
+        clusters =list(cluster)
+        #print("clusters ",node, clusters)
+        
+        if super().is_edge_betw( self.G, node, clusters):
+            Kbv = super().select_edge_betw(self.G,node,clusters) 
+            db = sum([j for k,j in self.G.degree(clusters)])
+            delta_Q = 1/self.m * Kbv -self.G.degree(node)/(2*self.m**2)*db
+        else:
+            delta_Q = 0
+        
+        #sleep(0.05)
+        return delta_Q
+    
+    def delta_Q_MN (self,vsele,devc ,dvc,*cluster):
+        clusters =list(cluster)
+        degree = self.G.degree(vsele)
+        if vsele in clusters:
+            deq = 0
+            #qum.append(deq)
+        elif super().is_edge_betw(self.G,vsele,clusters): 
+            dvcp = super().select_edge_betw(self.G,vsele,clusters)
+            devcp = sum([j for k,j in self.G.degree(clusters)])
+            deq = (1/self.m)*(dvcp-dvc)+(degree/(2*self.m**2))*(devc-devcp-degree)
+            #qum.append(deq)
+        else :
+            deq = -1
+            #qum.append(0)
+
+
+        return deq
+    
         
     def GCH(self):
         community = []
@@ -30,17 +67,18 @@ class Fast_local_Move_IG(GraphTolls) :
             vertex_list.remove(node)
             MAX_Q = 0
             pos = -1
-            for index,clusters in enumerate(community):
-                if super().is_edge_betw(self.G,node,clusters):        
-                    Kbv = super().select_edge_betw(self.G,node,clusters)
-                    db = sum([j for k,j in self.G.degree(clusters)])
-                    delta_Q = 1/self.m * Kbv -self.G.degree(node)/(2*self.m**2)*db
-                    if delta_Q > MAX_Q:
-                        MAX_Q = delta_Q
-                        pos = index
-                else :
-                    delta_Q = 0
-
+            with Pool() as pool :  
+                result = pool.starmap(functools.partial(self.Delta_Q,node),community)
+                li =list(result)
+                #li = list(result)
+                pos = li.index(max(li))
+                #print(result)
+               
+                #if delta_Q > MAX_Q:
+                    #MAX_Q = delta_Q
+                    #pos = index
+    
+            MAX_Q = max(li)
             if MAX_Q > 0:
                 community[pos].add(node)
             else:
@@ -72,51 +110,45 @@ class Fast_local_Move_IG(GraphTolls) :
         for node in drop_node:
             MAX_Q = 0
             pos = -1
-            for index,clusters in enumerate(community):  
-                if super().is_edge_betw(self.G,node,clusters): 
-                    Kbv = super().select_edge_betw(self.G,node,clusters)
-                    db = sum([j for k,j in self.G.degree(clusters)])
-                    delta_Q = 1/self.m * Kbv - self.G.degree(node)/(2*self.m**2)*db
-                    if delta_Q > MAX_Q:
-                        MAX_Q = delta_Q
-                        pos = index
-    
+            with Pool() as pool :  
+                result = pool.starmap(functools.partial(self.Delta_Q,node),community)
+                li =list(result)
+                
+                
+            MAX_Q = max(li)
             if MAX_Q > 0:
                 community[pos].add(node)
             else:
                 community.append({node})
 
         while drop_node !=[]:
-                vsele= random.choice(drop_node)
-                degree = self.G.degree(vsele)
-                qum=[]
-                drop_node.remove(vsele)
-                for clusters in community:
-                    if vsele in clusters:
-                        original_clusters = clusters
-                        dvc = super().select_edge_betw(self.G,vsele,original_clusters)
-                        devc = sum([j for k,j in self.G.degree(clusters)])
-                        break 
-                for index,clusters in enumerate(community) :
-                    if vsele in clusters:
-                        deq = 0
-                        beforr = index
-                        qum.append(deq)
-                    elif super().is_edge_betw(self.G,vsele,clusters): 
-                        dvcp = super().select_edge_betw(self.G,vsele,clusters)
-                        devcp = sum([j for k,j in self.G.degree(clusters)])
-                        deq = (1/self.m)*(dvcp-dvc)+(degree/(2*self.m**2))*(devc-devcp-degree)
-                        qum.append(deq)
-                    else:
-                        qum.append(0)
+            vsele= random.choice(drop_node)
+            degree = self.G.degree(vsele)
+            qum=[]
+            drop_node.remove(vsele)
+            for index,clusters in enumerate(community):
+                if vsele in clusters:
+                    original_clusters = clusters
+                    dvc = super().select_edge_betw(self.G,vsele,original_clusters)
+                    devc = sum([j for k,j in self.G.degree(clusters)])
+                    beforr = index
+                    break 
 
-                val_mo = random.choice(qum)
-                if val_mo > 0:
-                    poss = qum.index(val_mo)
-                    community[poss].add(vsele)
-                    community[beforr].remove(vsele)
-                    if community[beforr] == []:
-                        del  community[beforr]
+            with Pool() as pool :  
+                result = pool.starmap(functools.partial(self.delta_Q_MN,vsele,devc,dvc),community)
+                li =list(result)
+                    #print(li)
+                    #li = list(result)    
+                    #index_com = random.choice(li)
+                    #print(result)
+
+            val_mo = random.choice(li)
+            if val_mo > 0:
+                poss = li.index(val_mo)
+                community[poss].add(vsele)
+                community[beforr].remove(vsele)
+                if community[beforr] == []:
+                    del  community[beforr]
     
                 
         return  community
@@ -129,26 +161,19 @@ class Fast_local_Move_IG(GraphTolls) :
             vsele = Qv.popleft()
             degree = self.G.degree(vsele)
             qum=[]
-            for clusters in  community:
+            for index,clusters in enumerate(community):
                 if vsele in clusters:
                     original_clusters = clusters
                     dvc = super().select_edge_betw(self.G,vsele,original_clusters)
                     devc = sum([j for k,j in self.G.degree(clusters)])
+                    befor = index
                     break 
-            for index,clusters in enumerate(community) :
-                if vsele in clusters:
-                    deq = 0
-                    befor= index
-                    qum.append(deq)
-                elif super().is_edge_betw(self.G,vsele,clusters): 
-                    dvcp= super().select_edge_betw(self.G,vsele,clusters)
-                    devcp = sum([j for k,j in self.G.degree(clusters)])
-                    deq = (1/self.m)*(dvcp-dvc)+(degree/(2*self.m**2))*(devc-devcp-degree)
-                    qum.append(deq)
-                else :
-                    qum.append(0)
-            if max(qum) > 0:
-                pos = qum.index(max(qum))
+            with Pool() as pool :  
+                result = pool.starmap(functools.partial(self.delta_Q_MN,vsele,devc,dvc),community)
+                li =list(result)
+
+            if max(li) > 0:
+                pos = li.index(max(li))
                 community[pos].add(vsele)
                 community[befor].remove(vsele)
                 Neigh= list(self.G.neighbors(vsele))
