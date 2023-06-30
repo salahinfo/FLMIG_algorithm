@@ -128,13 +128,13 @@ class GraphTolls:
         return value  
     
     def select_edge_betw(self,g,* arg):
-        Edg_betw = []
+        Edg_betw = 0
         for i in list(g.neighbors(arg[0])):
             if i in arg[1] :
-                Edg_betw.append(i)
+                Edg_betw = Edg_betw + 1
         
-        k = len(Edg_betw)
-        return k 
+
+        return Edg_betw 
     def is_edge_betw(self,g,vert,commu):
         Edg_betw = []
         for i in list(g.neighbors(vert)):

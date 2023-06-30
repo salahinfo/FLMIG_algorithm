@@ -188,7 +188,8 @@ class Fast_local_Move_IG(GraphTolls) :
         soltion = self.GCH()
         soltion = self.FL_move(soltion)
         best_solution = copy.deepcopy(soltion)
-        T_init = 0.025*nx_comm.modularity(self.G, soltion)
+        Q_best = nx_comm.modularity(self.G, soltion)
+        T_init = 0.025*Q_best
         T = T_init
         nb_iter = 0
         while nb_iter < self.Nb:
@@ -198,8 +199,9 @@ class Fast_local_Move_IG(GraphTolls) :
             soltion = self.Reconstruction(soltion,drop_nodes,mn)
             soltion = self.FL_move(soltion)            
             Q2 = nx_comm.modularity(self.G, soltion)
-            if Q2 > nx_comm.modularity(self.G, best_solution):
+            if Q2 > Q_best:
                 best_solution = copy.deepcopy(soltion)
+                Q_best = Q2
                 
             P = random.random()
             if Q2 < Q1 and P > math.exp((Q2 - Q1)//T):
@@ -214,11 +216,10 @@ class Fast_local_Move_IG(GraphTolls) :
         
             nb_iter = nb_iter + 1
         
-        self.Mod_val = nx_comm.modularity(self.G, best_solution)
         end = time.time()
         t = end-start
         
-        return self.Mod_val, best_solution,t
+        return Q_best, best_solution,t
         
 
 def de_main():
