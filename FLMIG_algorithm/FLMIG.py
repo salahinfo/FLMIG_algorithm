@@ -57,23 +57,24 @@ class Fast_local_Move_IG(GraphTolls) :
     def Destruction(self,community):
         vertex_list = [i for i in self.G.nodes()]
         drop_node = []
-        cut_len = int(float(self.n)* float(self.Beta))
-        random.shuffle(vertex_list)
-        drop = vertex_list[self.n-cut_len:]
-        merg_node = vertex_list[ :self.n-cut_len]
-        for i in range(cut_len) :
-            v = drop.pop()
-            drop_node.append(v)
-            for cluster in community:
-                if v in cluster:
-                    cluster.remove(v)
-                    if len(cluster) == 0: 
-                        del cluster 
+        merg_node = []
+        cut_len = int(len(community)* float(self.Beta))
+        index_community = random.sample(community,cut_len)
+        for cluster in index_community:
+            inedex_comu = community.index(cluster)
+            for v in cluster :
+                drop_node.append(v)
+            del community[inedex_comu]
+        #print("drop node",drop_node)        
+        for clust in community:
+            for node in clust:
+                merg_node.append(node)
 
+        #print("merge_node",merg_node)        
         return  community , drop_node, merg_node
     
-    def Reconstruction(self,community,drop_node,merg_node):
-
+    def Reconstruction(self,community,drop_node, merg_node):
+        #merg_node = [i for i in self.G.nodes()]
         random.shuffle(drop_node)
         for node in drop_node:
             MAX_Q = 0
@@ -114,7 +115,7 @@ class Fast_local_Move_IG(GraphTolls) :
                 elif super().is_edge_betw(self.G,vsele,clusters): 
                     dvcp = super().select_edge_betw(self.G,vsele,clusters)
                     devcp = sum([j for k,j in self.G.degree(clusters)])
-                    deq = (1/self.m)*(dvcp-dvc)+(degree/(2*self.m**2))*(devc-devcp-degree)
+                    deq = (1/self.m)*(dvcp-dvc)-(degree/(2*self.m**2))*(devcp-devc+degree)
                     if deq > 0: 
                         qum.append(deq)
                         l.append(index)
@@ -155,8 +156,8 @@ class Fast_local_Move_IG(GraphTolls) :
                 elif super().is_edge_betw(self.G,vsele,clusters): 
                     dvcp= super().select_edge_betw(self.G,vsele,clusters)
                     devcp = sum([j for k,j in self.G.degree(clusters)])
-                    deq = (1/self.m)*(dvcp-dvc)+(degree/(2*self.m**2))*(devc-devcp-degree)
-                    qum.append(deq)
+                    deq = (1/self.m)*(dvcp-dvc)-(degree/(2*self.m**2))*(devcp-devc+degree)
+                    qum.append(deq) 
                 else :
                     qum.append(0)
             if max(qum) > 0:
@@ -186,35 +187,28 @@ class Fast_local_Move_IG(GraphTolls) :
     def Run_FMLIG (self):
         start = time.time()
         soltion = self.GCH()
+        print("after construction",self.n)
         soltion = self.FL_move(soltion)
+        print("after fastlocalmove",self.m)
         best_solution = copy.deepcopy(soltion)
-<<<<<<< HEAD
-        best_q = nx_comm.modularity(self.G, soltion)
-        T_init = 0.025*best_q
-=======
         Q_best = nx_comm.modularity(self.G, soltion)
         T_init = 0.025*Q_best
->>>>>>> modularity
         T = T_init
         nb_iter = 0
         while nb_iter < self.Nb:
             Q1 = nx_comm.modularity(self.G, soltion)
             incumbent_solution = copy.deepcopy(soltion)
-            soltion,drop_nodes,mn = self.Destruction(soltion)
-            soltion = self.Reconstruction(soltion,drop_nodes,mn)
-            soltion = self.FL_move(soltion)            
+            soltion,drop_nodes,merg_node = self.Destruction(soltion)
+            #print("after destrucion",soltion)
+            soltion = self.Reconstruction(soltion,drop_nodes,merg_node)
+            #print("after reconstrucion",soltion)
+            soltion = self.FL_move(soltion) 
+            #print("after fastlocalmove",soltion)           
             Q2 = nx_comm.modularity(self.G, soltion)
-<<<<<<< HEAD
-            #best_q = nx_comm.modularity(self.G, best_solution)
-            if Q2 > best_q:
-                best_solution = copy.deepcopy(soltion)
-                best_q = Q2
-=======
             if Q2 > Q_best:
                 best_solution = copy.deepcopy(soltion)
                 Q_best = Q2
                 
->>>>>>> modularity
             P = random.random()
             if Q2 < Q1 and P > math.exp((Q2 - Q1)//T):
                 soltion = copy.deepcopy(incumbent_solution)
@@ -228,12 +222,10 @@ class Fast_local_Move_IG(GraphTolls) :
         
             nb_iter = nb_iter + 1
         
-
         end = time.time()
         t = end-start
         
         return Q_best, best_solution,t
->>>>>>> modularity
         
 
 def de_main():
