@@ -51,14 +51,17 @@ class Fast_local_Move_IG(GraphTolls) :
                 community[pos].add(node)
             else:
                 community.append({node})
+
             
         return  community 
 
-    def Destruction(self,community):
-        vertex_list = [i for i in self.G.nodes()]
+    def Destruction(self,community):       
         drop_node = []
         merg_node = []
+        graph_node = [i for i in self.G.nodes()]
         cut_len = int(len(community)* float(self.Beta))
+        mov_len = int(self.n * float(self.Beta))
+        moved_node = graph_node[:mov_len]
         index_community = random.sample(community,cut_len)
         for cluster in index_community:
             inedex_comu = community.index(cluster)
@@ -71,11 +74,12 @@ class Fast_local_Move_IG(GraphTolls) :
                 merg_node.append(node)
 
         #print("merge_node",merg_node)        
-        return  community , drop_node, merg_node
+        return  community, drop_node, merg_node
     
     def Reconstruction(self,community,drop_node, merg_node):
         #merg_node = [i for i in self.G.nodes()]
         random.shuffle(drop_node)
+        #print("befor",community)
         for node in drop_node:
             MAX_Q = 0
             pos = -1
@@ -92,7 +96,8 @@ class Fast_local_Move_IG(GraphTolls) :
                 community[pos].add(node)
             else:
                 community.append({node})
-
+        
+        #print("after",community)
         cut_len = int(float(self.n)* float(self.Beta))
         while merg_node !=[]:
             vsele= random.choice(merg_node)
@@ -121,17 +126,44 @@ class Fast_local_Move_IG(GraphTolls) :
                         l.append(index)
                         
             if qum !=[]:    
-                prb = [self.expon(i, 0.01) for i in qum]
-                    #print(prb ,qum)
+                prb = [self.expon(i, 0.1) for i in qum]
+                #print(prb ,qum)
                 poss = super().weighted_choice(l , prb)
-                    #print(l , poss)        
+                #print(l , poss)        
                 community[poss].add(vsele)
                 community[beforr].remove(vsele)
                 if community[beforr] == []:
                     del  community[beforr]
-    
-        #print(vsele,prob)        
         
+        #print("befor",community)
+        for community_condidate in community: 
+            #print("community_condidate",community_condidate)
+            maxq=0
+            pos=-1
+            db = sum([j for k,j in self.G.degree(community_condidate)])
+            for index,cluster in enumerate(community):
+                #print("community",community)
+                if cluster == community_condidate:
+                    maxq = 0 
+                else:    
+                    dbc = sum([j for k,j in self.G.degree(cluster)]) 
+                    Kbv =  super().select_edge_c(self.G,cluster,community_condidate)
+                    #print("testttt",Kbv,community_condidate,cluster)
+                    delta_Q =  Kbv - (dbc*db)/(2*self.m)
+                    #print(delta_Q)
+                    if delta_Q > maxq:
+                            maxq=delta_Q
+                            pos = index
+                            #print("poss",pos)
+
+    
+            if maxq > 0:
+                community[pos].update(community_condidate)
+                #print(community[pos],community_condidate)
+                community.remove(community_condidate)
+                
+        #print("after",community)
+
         return  community
 
 
@@ -187,12 +219,12 @@ class Fast_local_Move_IG(GraphTolls) :
     def Run_FMLIG (self):
         start = time.time()
         soltion = self.GCH()
-        print("after construction",self.n)
+        #print("after construction",self.n)
         soltion = self.FL_move(soltion)
-        print("after fastlocalmove",self.m)
+        #print("after fastlocalmove",self.m)
         best_solution = copy.deepcopy(soltion)
         Q_best = nx_comm.modularity(self.G, soltion)
-        T_init = 0.025*Q_best
+        T_init = 0.3*Q_best
         T = T_init
         nb_iter = 0
         while nb_iter < self.Nb:
@@ -210,6 +242,8 @@ class Fast_local_Move_IG(GraphTolls) :
                 Q_best = Q2
                 
             P = random.random()
+            #print(P)
+            #print("pppp",math.exp((Q2 - Q1)//T))
             if Q2 < Q1 and P > math.exp((Q2 - Q1)//T):
                 soltion = copy.deepcopy(incumbent_solution)
                 T = T_init
@@ -252,7 +286,7 @@ def de_main():
             
         elif sys.argv[4] == 'None':
             pass            
-        
+      
         nb_run = nb_run +1
             
     if sys.argv[4] != 'None':

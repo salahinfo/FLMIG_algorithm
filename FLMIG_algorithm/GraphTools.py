@@ -134,6 +134,7 @@ class GraphTolls:
                 Edg_betw = Edg_betw + 1
         
         return Edg_betw 
+    
     def is_edge_betw(self,g,vert,commu):
         Edg_betw = []
         for i in list(g.neighbors(vert)):
@@ -141,9 +142,18 @@ class GraphTolls:
                 return True
             
         return False
+    
+    def select_edge_c(self,g,* arg):
+        Edg_betw = 0
+        for v in arg[0]:
+            for i in list(g.neighbors(v)):
+                if i in arg[1] :
+                    Edg_betw = Edg_betw + 1
+        
+        return Edg_betw 
    
     def weighted_choice(self,objects, weights):
-        weights = np.array(weights, dtype=np.float64)
+        weights = np.array(weights, dtype = np.float64)
         sum_of_weights = weights.sum()
         np.multiply(weights, 1 / sum_of_weights, weights)
         weights = weights.cumsum()
@@ -151,5 +161,5 @@ class GraphTolls:
         for i in range(len(weights)):
             if x < weights[i]:
                 return objects[i]
-    
+           
            
