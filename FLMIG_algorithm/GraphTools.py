@@ -26,7 +26,8 @@ class GraphTolls:
 
         l=('  '.join(l))
         return l
-
+    
+       
     def Remove_Revers(self,path):
         with open(path, "r") as file:
             lines = file.readlines()
@@ -129,16 +130,15 @@ class GraphTolls:
     
     def select_edge_betw(self,g,* arg):
         Edg_betw = 0
-        for i in list(g.neighbors(arg[0])):
-            if i in arg[1] :
+        for node in arg[1]:
+            if g.has_edge(node,arg[0]) :
                 Edg_betw = Edg_betw + 1
         
         return Edg_betw 
     
     def is_edge_betw(self,g,vert,commu):
-        Edg_betw = []
-        for i in list(g.neighbors(vert)):
-            if i in commu :
+        for node in commu:
+            if g.has_edge(node,vert) :
                 return True
             
         return False
@@ -146,10 +146,9 @@ class GraphTolls:
     def select_edge_c(self,g,* arg):
         Edg_betw = 0
         for v in arg[0]:
-            for i in list(g.neighbors(v)):
-                if i in arg[1] :
+            for i in arg[1]:
+                if g.has_edge(v,i) :
                     Edg_betw = Edg_betw + 1
-        
         return Edg_betw 
    
     def weighted_choice(self,objects, weights):
