@@ -6,17 +6,27 @@ import random
 import numpy as np
 
 class GraphTolls:
-     
-    def Read_Graph(self, Path):
+    
+    def __init__(self, Path) -> None:
+        self.Path = Path
+        self.graph = self.Read_Graph()
+        self.m = self.graph.number_of_edges()
+        self.n = self.graph.number_of_nodes()
+        self.adjency = self.graph.adj
+        self.Node_list = [i for i in self.graph.nodes()]
         
-        if Path[len(Path)-3: ] == 'txt' or Path[len(Path)-3: ] == 'dat':
-            Graph = nx.read_edgelist(Path, nodetype = int, data = True)
-        elif Path[len(Path)-3: ] == 'gml':
-            Graph = nx.read_gml(Path,label = 'id')
+    def Read_Graph(self):
+        
+        if self.Path[len(self.Path)-3: ] == 'txt' or self.Path[len(self.Path)-3: ] == 'dat':
+            Graph = nx.read_edgelist(self.Path, nodetype = int, data = True)
+            graph = nx.Graph(Graph)
+        elif self.Path[len(self.Path)-3: ] == 'gml':
+            Graph = nx.read_gml(self.Path,label = 'id')
+            graph = nx.Graph(Graph)
         else :
             raise TypeError (" the type of graph is not suportable or not no such file or directory")
 
-        return Graph
+        return graph 
     
     def Reve(self,x):
         sa = x.split()[::-1]
@@ -128,27 +138,31 @@ class GraphTolls:
             value = self.arg[element_idx]
         return value  
     
-    def select_edge_betw(self,g,* arg):
+    def select_edge_betw(self,* arg):
         Edg_betw = 0
-        for node in arg[1]:
-            if g.has_edge(node,arg[0]) :
+        #print("argggg0",arg[0])
+        for node in self.adjency[arg[0]]:
+            if node in arg[1]:
                 Edg_betw = Edg_betw + 1
         
         return Edg_betw 
     
-    def is_edge_betw(self,g,vert,commu):
-        for node in commu:
-            if g.has_edge(node,vert) :
+    def is_edge_betw(self,vert,commu):
+        #print(self.adjency)
+        for node in self.adjency[vert]:
+            #print(g.adj[vert])
+            if node in commu:
                 return True
             
         return False
     
-    def select_edge_c(self,g,* arg):
+    def select_edge_c(self,* arg):
         Edg_betw = 0
         for v in arg[0]:
-            for i in arg[1]:
-                if g.has_edge(v,i) :
+            for node in self.adjency[v]:
+                if node in arg[1]:
                     Edg_betw = Edg_betw + 1
+        
         return Edg_betw 
    
     def weighted_choice(self,objects, weights):
@@ -160,5 +174,3 @@ class GraphTolls:
         for i in range(len(weights)):
             if x < weights[i]:
                 return objects[i]
-           
-           
