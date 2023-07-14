@@ -16,7 +16,7 @@ class Fast_local_Move_IG(GraphTolls) :
         self.Nb = Nb
         self.Beta = Beta
         self.Mod_val = 0
-        super(Fast_local_Move_IG,self).__init__(path)
+        super(Fast_local_Move_IG, self).__init__(path)
 
     def expon (self , value , teta):
         x = (1/teta)*(value)
@@ -38,9 +38,9 @@ class Fast_local_Move_IG(GraphTolls) :
             for index,clusters in enumerate(community):
                 if super().is_edge_betw(node,clusters):        
                     Kbv = super().select_edge_betw(node,clusters)
-                    db = sum([self.graph.degree[j] for j in clusters])
+                    db = sum([self.Degree[j] for j in clusters])
                     #print(Kbv , db)
-                    delta_Q = 1/self.m * Kbv -self.graph.degree[node]/(2*self.m**2)*db
+                    delta_Q = 1/self.m * Kbv -self.Degree[node]/(2*self.m**2)*db
                     if delta_Q > MAX_Q:
                         MAX_Q = delta_Q
                         pos = index
@@ -59,9 +59,7 @@ class Fast_local_Move_IG(GraphTolls) :
         drop_node = []
         merg_node = []
         graph_node = copy.copy(self.Node_list)
-        cut_len = int(len(community)* float(self.Beta))
-        mov_len = int(self.n * float(self.Beta))
-        moved_node = graph_node[:mov_len]
+        cut_len = int(len(community)* float(self.Beta)) 
         index_community = random.sample(community,cut_len)
         for cluster in index_community:
             inedex_comu = community.index(cluster)
@@ -86,8 +84,8 @@ class Fast_local_Move_IG(GraphTolls) :
             for index,clusters in enumerate(community):  
                 if super().is_edge_betw(node,clusters): 
                     Kbv = super().select_edge_betw(node,clusters)
-                    db = sum([self.graph.degree[j] for j in clusters])
-                    delta_Q = 1/self.m * Kbv - self.graph.degree[node]/(2*self.m**2)*db
+                    db = sum([self.Degree[j] for j in clusters])
+                    delta_Q = 1/self.m * Kbv - self.Degree[node]/(2*self.m**2)*db
                     if delta_Q > MAX_Q:
                         MAX_Q = delta_Q
                         pos = index
@@ -101,7 +99,7 @@ class Fast_local_Move_IG(GraphTolls) :
         cut_len = int(float(self.n)* float(self.Beta))
         while merg_node !=[]:
             vsele= random.choice(merg_node)
-            degree = self.graph.degree[vsele]
+            degree = self.Degree[vsele]
             qum=[]
             proba_ngh = []
             l = []
@@ -111,7 +109,7 @@ class Fast_local_Move_IG(GraphTolls) :
                 if vsele in clusters:
                     original_clusters = clusters
                     dvc = super().select_edge_betw(vsele,original_clusters)
-                    devc = sum([self.graph.degree[j] for j in clusters])
+                    devc = sum([self.Degree[j] for j in clusters])
                     break 
             for index,clusters in enumerate(community) :
                 if vsele in clusters:
@@ -119,7 +117,7 @@ class Fast_local_Move_IG(GraphTolls) :
                     beforr = index
                 elif super().is_edge_betw(vsele,clusters): 
                     dvcp = super().select_edge_betw(vsele,clusters)
-                    devcp = sum([self.graph.degree[j] for j in clusters])
+                    devcp = sum([self.Degree[j] for j in clusters])
                     deq = (1/self.m)*(dvcp-dvc)-(degree/(2*self.m**2))*(devcp-devc+degree)
                     if deq > 0: 
                         qum.append(deq)
@@ -136,13 +134,13 @@ class Fast_local_Move_IG(GraphTolls) :
         for community_condidate in community: 
             maxq=0
             pos=-1
-            db = sum([self.graph.degree[j] for j in community_condidate])
+            db = sum([self.Degree[j] for j in community_condidate])
             for index,cluster in enumerate(community):
 
                 if cluster == community_condidate:
                     maxq = 0 
                 else:    
-                    dbc = sum([self.graph.degree[j] for j in cluster])
+                    dbc = sum([self.Degree[j] for j in cluster])
                     Kbv =  super().select_edge_c(cluster,community_condidate)
                     delta_Q =  Kbv - (dbc*db)/(2*self.m)
                     if delta_Q > maxq:
@@ -161,13 +159,13 @@ class Fast_local_Move_IG(GraphTolls) :
         random.shuffle(Qv)
         while Qv:
             vsele = Qv.popleft()
-            degree = self.graph.degree[vsele]
+            degree = self.Degree[vsele]
             qum=[]
             for clusters in community:
                 if vsele in clusters:
                     original_clusters = clusters
                     dvc = super().select_edge_betw(vsele,original_clusters)
-                    devc = sum([self.graph.degree[j] for j in clusters])
+                    devc = sum([self.Degree[j] for j in clusters])
                     break 
                 
             for index,clusters in enumerate(community) :
@@ -177,7 +175,7 @@ class Fast_local_Move_IG(GraphTolls) :
                     qum.append(deq)
                 elif super().is_edge_betw(vsele,clusters): 
                     dvcp = super().select_edge_betw(vsele,clusters)
-                    devcp = sum([self.graph.degree[j] for j in clusters])
+                    devcp = sum([self.Degree[j] for j in clusters])
                     deq = (1/self.m)*(dvcp-dvc)-(degree/(2*self.m**2))*(devcp-devc+degree)
                     qum.append(deq)
                 else :
@@ -187,7 +185,7 @@ class Fast_local_Move_IG(GraphTolls) :
                 pos = qum.index(max(qum))
                 community[pos].add(vsele)
                 community[befor].remove(vsele)
-                Neigh = list(self.graph.neighbors(vsele))
+                Neigh = list(self.adjency[vsele])
                 for veg in Neigh:
                     if veg not in community[pos] and veg not in Qv:    
                            Qv.append(veg)       
@@ -209,7 +207,7 @@ class Fast_local_Move_IG(GraphTolls) :
     def Run_FMLIG (self):
         start = time.time()
         soltion = self.GCH()
-        print(soltion)
+        print(self.n)
         soltion = self.FL_move(soltion)
         best_solution = copy.deepcopy(soltion)
         Q_best = nx_comm.modularity(self.graph, soltion)

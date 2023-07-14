@@ -14,6 +14,7 @@ class GraphTolls:
         self.n = self.graph.number_of_nodes()
         self.adjency = self.graph.adj
         self.Node_list = [i for i in self.graph.nodes()]
+        self.Degree = self.graph.degree()
         
     def Read_Graph(self):
         
@@ -140,7 +141,6 @@ class GraphTolls:
     
     def select_edge_betw(self,* arg):
         Edg_betw = 0
-        #print("argggg0",arg[0])
         for node in self.adjency[arg[0]]:
             if node in arg[1]:
                 Edg_betw = Edg_betw + 1
@@ -148,9 +148,7 @@ class GraphTolls:
         return Edg_betw 
     
     def is_edge_betw(self,vert,commu):
-        #print(self.adjency)
         for node in self.adjency[vert]:
-            #print(g.adj[vert])
             if node in commu:
                 return True
             
