@@ -1,13 +1,13 @@
 import random
-from collections import deque
+from collections import deque,Counter
 import copy
 import time 
 import sys
 import math
-import networkx.algorithms.community as nx_comm
 from scipy.stats import expon
 from sklearn.metrics.cluster import normalized_mutual_info_score
 from GraphTools import GraphTolls
+
 
 
 
@@ -24,212 +24,194 @@ class Fast_local_Move_IG(GraphTolls) :
         return p      
     
     def GCH(self):
-        community = []
-        vertex_list = copy.copy(self.Node_list)
+        
+        vertex_list = list(self.graph.nodes())
         node = random.choice(vertex_list)
+        #print("nnnn",node)
+        com_id = 0
+        self.membership[node] = com_id
+        self.DegCom[com_id] = self.Degree[node]
+        #print(self.Degree)
         vertex_list.remove(node)
-        community.append({node})
-        while vertex_list != []:    
-            node = random.choice(vertex_list)
-            vertex_list.remove(node)
-            #print(vertex_list)
+        for node in  vertex_list:    
+            comm_ngh = super().neigh_comm( node )
             MAX_Q = 0
             pos = -1
-            for index,clusters in enumerate(community):
-                if super().is_edge_betw(node,clusters):        
-                    Kbv = super().select_edge_betw(node,clusters)
-                    db = sum([self.Degree[j] for j in clusters])
-                    #print(Kbv , db)
-                    delta_Q = 1/self.m * Kbv -self.Degree[node]/(2*self.m**2)*db
-                    if delta_Q > MAX_Q:
-                        MAX_Q = delta_Q
-                        pos = index
+            for com, Kbv in comm_ngh.items():    
+                db = self.DegCom[com]
+                delta_Q = 1/self.m * Kbv - self.Degree[node]/(2*self.m**2)*db
+                if delta_Q > MAX_Q:
+                    MAX_Q = delta_Q
+                    pos = com
                 else :
                     delta_Q = 0
-
-            if MAX_Q > 0:
-                community[pos].add(node)
-            else:
-                community.append({node})
-
             
-        return  community 
+            if MAX_Q > 0:
+                self.membership[node] = pos
+                self.DegCom[pos] = self.DegCom[pos] + self.Degree[node]
+            else:
+                com_id = com_id + 1
+                self.membership[node] = com_id
+                self.DegCom[com_id] = self.Degree[node]                     
+        
+        return  self.membership 
 
-    def Destruction(self,community):       
+    def Destruction( self):       
         drop_node = []
         merg_node = []
-        graph_node = copy.copy(self.Node_list)
-        cut_len = int(len(community)* float(self.Beta)) 
-        index_community = random.sample(community,cut_len)
-        for cluster in index_community:
-            inedex_comu = community.index(cluster)
-            for v in cluster :
-                drop_node.append(v)
-            del community[inedex_comu]
-               
-        for clust in community:
-            for node in clust:
-                merg_node.append(node)
-
-              
-        return  community, drop_node, merg_node
+        cut_len = int(len(self.DegCom)* float(self.Beta)) 
+        index_community = random.sample( list(self.DegCom.keys()), cut_len )
+        for com in index_community:
+            for node, com_id in self.membership.items():
+                if com_id == com:
+                    self.membership[node] = None                    
+                    drop_node.append(node)   
+            del self.DegCom[com] 
+        merg_node = [nod for nod in self.Node_list if nod not in drop_node] 
+          
+        return  self.membership, drop_node, merg_node
     
-    def Reconstruction(self,community,drop_node, merg_node):
-        
+    def Reconstruction( self, drop_node, merg_node):
         random.shuffle(drop_node)
-        
-        for node in drop_node:
+        for node in  drop_node:    
+            comm_ngh = super().neigh_comm( node)
             MAX_Q = 0
             pos = -1
-            for index,clusters in enumerate(community):  
-                if super().is_edge_betw(node,clusters): 
-                    Kbv = super().select_edge_betw(node,clusters)
-                    db = sum([self.Degree[j] for j in clusters])
-                    delta_Q = 1/self.m * Kbv - self.Degree[node]/(2*self.m**2)*db
-                    if delta_Q > MAX_Q:
-                        MAX_Q = delta_Q
-                        pos = index
-    
+            for com, Kbv in comm_ngh.items():    
+                db = self.DegCom[com]
+                delta_Q = 1/self.m * Kbv - self.Degree[node]/(2*self.m**2)*db
+                if delta_Q > MAX_Q:
+                    MAX_Q = delta_Q
+                    pos = com
+                else :
+                    delta_Q = 0
+            
             if MAX_Q > 0:
-                community[pos].add(node)
+                self.membership[node] = pos
+                self.DegCom[pos] = self.DegCom[pos] + self.Degree[node]
             else:
-                community.append({node})
-        
-        
-        cut_len = int(float(self.n)* float(self.Beta))
-        while merg_node !=[]:
-            vsele= random.choice(merg_node)
+                com_id = super().generate_random_not_in_list(list(self.DegCom.keys()),0,self.n)
+                self.membership[node] = com_id
+                self.DegCom[com_id] = self.Degree[node] 
+                                    
+        for vsele in merg_node:
             degree = self.Degree[vsele]
-            qum=[]
-            proba_ngh = []
-            l = []
-            chek = False
-            merg_node.remove(vsele)
-            for clusters in community:
-                if vsele in clusters:
-                    original_clusters = clusters
-                    dvc = super().select_edge_betw(vsele,original_clusters)
-                    devc = sum([self.Degree[j] for j in clusters])
-                    break 
-            for index,clusters in enumerate(community) :
-                if vsele in clusters:
-                    deq = 0
-                    beforr = index
-                elif super().is_edge_betw(vsele,clusters): 
-                    dvcp = super().select_edge_betw(vsele,clusters)
-                    devcp = sum([self.Degree[j] for j in clusters])
+            qum={}
+            com_befor = self.membership[vsele]
+            ngh_com = super().neigh_comm( vsele)
+            #print(ngh_com)
+            dvc = super().ngh_node( vsele, com_befor)
+            devc = self.DegCom[com_befor]              
+            for com  in ngh_com :
+                if com != com_befor:
+                    dvcp = ngh_com[com]
+                    devcp = self.DegCom[com]
                     deq = (1/self.m)*(dvcp-dvc)-(degree/(2*self.m**2))*(devcp-devc+degree)
                     if deq > 0: 
-                        qum.append(deq)
-                        l.append(index)
-                        
-            if qum !=[]:    
-                prb = [self.expon(i, 0.1) for i in qum]
-                poss = super().weighted_choice(l , prb)
-                community[poss].add(vsele)
-                community[beforr].remove(vsele)
-                if community[beforr] == []:
-                    del  community[beforr]
+                        qum[com] = deq
+            
+            if len(qum) != 0:  
+                prb = [ self.expon(i, 0.1) for k,i in qum.items() ]
+                com_n = super().weighted_choice( list(qum.keys()), prb)
+                self.membership[vsele] = com_n
+                self.DegCom[com_n] = self.DegCom[com_n] + self.Degree[vsele]
+                self.DegCom[com_befor] = self.DegCom[com_befor] - self.Degree[vsele]
+                if self.DegCom[com_befor] <= 0:
+                    del self.DegCom[com_befor]
         
-        for community_condidate in community: 
-            maxq=0
-            pos=-1
-            db = sum([self.Degree[j] for j in community_condidate])
-            for index,cluster in enumerate(community):
-
-                if cluster == community_condidate:
-                    maxq = 0 
-                else:    
-                    dbc = sum([self.Degree[j] for j in cluster])
-                    Kbv =  super().select_edge_c(cluster,community_condidate)
-                    delta_Q =  Kbv - (dbc*db)/(2*self.m)
-                    if delta_Q > maxq:
-                            maxq=delta_Q
-                            pos = index
+        #print("degree community" ,self.DegCom)
+        modified = True
+        while modified :
+            modified = False        
+            community = list(self.DegCom.keys())
+            #print("befor reconstruction", self.membership, community)
+            for com1 in community:
+                maxq = 0
+                pos = -1
+                ngh_comm = super().com_ngh_com(com1)
+                #print(com1 , ngh_comm)
+                for comm ,Kbv in ngh_comm.items():
+                    delta_Q =  Kbv / self.m - ( self.DegCom[com1] * self.DegCom[comm] ) / ( 2 * self.m**2 )
+                    #print("delta",delta_Q)
+                    if delta_Q > maxq :
+                        maxq= delta_Q
+                        pos = comm
                             
-            if maxq > 0:
-                community[pos].update(community_condidate)
-                community.remove(community_condidate)
-                
-        return  community
+                if maxq > 0:
+                    modified = True
+                    self.merge_com( com1, pos)              
+                    self.DegCom[com1] = self.DegCom[com1] + self.DegCom[pos]
+                    del self.DegCom[pos]
+                                                  
+        return  self.membership
 
 
-    def FL_move(self,community): 
+    def FL_move( self):
         Qv = deque(self.Node_list)
         random.shuffle(Qv)
         while Qv:
             vsele = Qv.popleft()
             degree = self.Degree[vsele]
-            qum=[]
-            for clusters in community:
-                if vsele in clusters:
-                    original_clusters = clusters
-                    dvc = super().select_edge_betw(vsele,original_clusters)
-                    devc = sum([self.Degree[j] for j in clusters])
-                    break 
-                
-            for index,clusters in enumerate(community) :
-                if vsele in clusters:
-                    deq = 0
-                    befor = index
-                    qum.append(deq)
-                elif super().is_edge_betw(vsele,clusters): 
-                    dvcp = super().select_edge_betw(vsele,clusters)
-                    devcp = sum([self.Degree[j] for j in clusters])
-                    deq = (1/self.m)*(dvcp-dvc)-(degree/(2*self.m**2))*(devcp-devc+degree)
-                    qum.append(deq)
-                else :
-                    qum.append(0)
-            
-            if max(qum) > 0:
-                pos = qum.index(max(qum))
-                community[pos].add(vsele)
-                community[befor].remove(vsele)
+            #qum = 0
+            com_befor = self.membership[vsele]
+            #print(com_befor)
+            ngh_com = super().neigh_comm(vsele)
+            #print(ngh_com)
+            dvc = super().ngh_node( vsele, com_befor)
+            devc = self.DegCom[com_befor]
+            maxq = 0              
+            for com, dvcp  in ngh_com.items() :
+                if com !=  com_befor: 
+                    devcp = self.DegCom[com]
+                    deq = ( 1/self.m )*( dvcp-dvc )-( degree/(2*self.m**2) )*( devcp-devc+degree )
+                    if deq > maxq :
+                        maxq = deq
+                        m_com = com
+                        
+            if maxq > 0:
+                self.membership[vsele] = m_com
+                self.DegCom[m_com] = self.DegCom[m_com] + self.Degree[vsele]
+                self.DegCom[com_befor] = self.DegCom[com_befor] - self.Degree[vsele]
+                if self.DegCom[com_befor] <= 0:
+                    del self.DegCom[com_befor]
+                                         
                 Neigh = list(self.adjency[vsele])
                 for veg in Neigh:
-                    if veg not in community[pos] and veg not in Qv:    
-                           Qv.append(veg)       
-                if community[befor] == []:
-                    del community[befor]                          
+                    if self.membership[veg] != self.membership[vsele] and veg not in Qv:    
+                        Qv.append(veg)       
+                                      
+        return self.membership
 
-
-        return community
-
-    def lebel_node (self,community):
-        label = sorted([i for i in self.graph.nodes()])
-        for index,no in enumerate (label):
-            for i in range(len(community)):
-                if no in community[i]:
-                    label[index] = i
-        
-        return label
 
     def Run_FMLIG (self):
         start = time.time()
         soltion = self.GCH()
-        print(self.n)
-        soltion = self.FL_move(soltion)
-        best_solution = copy.deepcopy(soltion)
-        Q_best = nx_comm.modularity(self.graph, soltion)
-        T_init = 0.025*Q_best
+        soltion = self.FL_move()
+        #print("after fast local" , soltion)    
+        best_solution = copy.copy(soltion)
+        #print("best solution", best_solution)
+        Q_best = super().modularity()
+        #print("qqqqqqqqqqqq",Q_best)
+        T_init = 0.025 * Q_best
         T = T_init
         nb_iter = 0
         while nb_iter < self.Nb:
-            Q1 = nx_comm.modularity(self.graph, soltion)
-            incumbent_solution = copy.deepcopy(soltion)
-            soltion,drop_nodes,merg_node = self.Destruction(soltion)
-            soltion = self.Reconstruction(soltion,drop_nodes,merg_node)
-            soltion = self.FL_move(soltion) 
-                       
-            Q2 = nx_comm.modularity(self.graph, soltion)
+            Q1 = super().modularity()
+            print("q1", Q1)
+            incumbent_solution = copy.copy(soltion)
+            soltion,drop_nodes,merg_node = self.Destruction()
+            soltion = self.Reconstruction( drop_nodes, merg_node)
+            soltion = self.FL_move() 
+                                   
+            Q2 = super().modularity()
+            print( "q2" , Q2)
             if Q2 > Q_best:
-                best_solution = copy.deepcopy(soltion)
+                best_solution = copy.copy(soltion)
                 Q_best = Q2
                 
             P = random.random()
-            
             if Q2 < Q1 and P > math.exp((Q2 - Q1)//T):
-                soltion = copy.deepcopy(incumbent_solution)
+                soltion = copy.copy(incumbent_solution)
                 T = T_init
 
             elif Q2  >=  Q1:
@@ -243,7 +225,7 @@ class Fast_local_Move_IG(GraphTolls) :
         end = time.time()
         t = end-start
         
-        return Q_best, best_solution,t
+        return Q_best, best_solution, t
         
 
 def de_main():
@@ -258,13 +240,14 @@ def de_main():
     Q_list = []
     nb_run = 0
     while nb_run < int(sys.argv[5]) :
+        print("rb",nb_run)
         mod,community,tim = communities.Run_FMLIG() 
         Q_list.append(mod)
         Time_list.append(tim)
-        label = communities.lebel_node(community)  
+        #label = communities.lebel_node(community)  
         if sys.argv[4]!= 'None':
             True_partition = data.Read_GroundTruth(sys.argv[4])
-            NMI = normalized_mutual_info_score(True_partition,label)
+            NMI = normalized_mutual_info_score(True_partition,community)
             NMI_list.append(NMI)
             
             
