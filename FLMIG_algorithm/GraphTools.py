@@ -91,7 +91,7 @@ class GraphTolls:
             arg.sort()
             return  arg[len(arg) // 2]
   
-    def stdev( self,arg):
+    def stdev( self, arg):
         if len(arg) < 1 or len(arg) == 1:
             return None
         else:
@@ -121,14 +121,11 @@ class GraphTolls:
         
         
     def ngh_node ( self, node, com):
-        ngh_com = 0
+        ngh_com = 0.
         for ngh in self.graph[node]:  
             if  self.membership[ngh] == com:
-                if ngh == node:
-                    ngh_com += 1
-                else:
-                    ngh_com += 1 / 2.
-                               
+                ngh_com += 1 
+                             
         return ngh_com
     
     def neigh_comm ( self, node):
@@ -147,9 +144,9 @@ class GraphTolls:
             if  com == com_id:  
                 link = 1
                 for ngh in self.adjency[node]:  
-                   comid = self.membership[ngh]
-                   if com != comid :
-                       com_ngh[comid] = com_ngh.get( comid, 0) + link                       
+                    comid = self.membership[ngh]
+                    if com != comid :
+                        com_ngh[comid] = com_ngh.get( comid, 0) + link                       
     
         return com_ngh
     
@@ -176,9 +173,9 @@ class GraphTolls:
             if x < weights[i]:
                 return objects[i]
                
-    def generate_random_not_in_list( self, my_list,min_val,max_val):
+    def generate_random_not_in_list( self, my_list):
         while True:
-            random_number = random.randint( min_val, max_val)
+            random_number = random.randint(0, self.m)
             if random_number not in my_list:
                 return random_number            
     
@@ -204,4 +201,18 @@ class GraphTolls:
             result += in_degree / self.m - (( degree / ( 2. * self.m )) ** 2)
             
         return result
-        
+    
+    def induced_graph(partition, graph, weight="weight"):
+    
+        ret = nx.Graph()
+        ret.add_nodes_from(partition.values())
+
+        for node1, node2, datas in graph.edges(data=True):
+            edge_weight = datas.get(weight, 1)
+            com1 = partition[node1]
+            com2 = partition[node2]
+            w_prec = ret.get_edge_data(com1, com2, {weight: 0}).get(weight, 1)
+            ret.add_edge(com1, com2, **{weight: w_prec + edge_weight})
+
+        return ret
+     
