@@ -10,18 +10,20 @@ class GraphTolls:
     def __init__( self, Path) -> None:
         self.Path = Path
         self.graph = self.Read_Graph()
-        self.m = self.graph.number_of_edges()
+        self.m = self.graph.size( weight= 'weight')
         self.n = self.graph.number_of_nodes()
         self.adjency = self.graph.adj
         self.Node_list = {i : i for i in self.graph.nodes()}
         self.Degree = dict(self.graph.degree())
         self.DegCom = {}
         self.membership = { i : None for i in self.graph.nodes() }
+        self.loops = {}
+        self.internal = {}
         
     def Read_Graph( self):
         
         if self.Path[len(self.Path)-3: ] == 'txt' or self.Path[len(self.Path)-3: ] == 'dat':
-            Graph = nx.read_edgelist(self.Path, nodetype = int, data = True)
+            Graph = nx.read_edgelist(self.Path, nodetype = int, data=[('weight', float)])
             graph = nx.Graph(Graph)
         elif self.Path[len(self.Path)-3: ] == 'gml':
             Graph = nx.read_gml(self.Path,label = 'id')
@@ -83,7 +85,7 @@ class GraphTolls:
             return None
         else:
             return sum(arg) / len(arg)   
-  
+    
     def median( self,arg):
         if len(arg) < 1:
             return None
@@ -120,34 +122,37 @@ class GraphTolls:
                 return key
         
         
-    def ngh_node ( self, node, com):
+    def ngh_node ( self, node, com ):
         ngh_com = 0.
-        for ngh in self.graph[node]:  
+        for ngh, datas in self.graph[node].items():
+            link = datas.get('weight', 1)  
             if  self.membership[ngh] == com:
-                ngh_com += 1 
+                ngh_com += link
                              
         return ngh_com
     
     def neigh_comm ( self, node):
         ngh_com = {}
-        link = 1
-        for ngh in self.adjency[node]:  
-            if  self.membership[ngh] != None:
+        for ngh, datas in self.graph[node].items():
+            link = datas.get( 'weight', 1)
+            #print("weigh",weight, link)            
+            if  self.membership[ngh] != None and node != ngh:
                 com_id = self.membership[ngh]
                 ngh_com[com_id] = ngh_com.get( com_id, 0) + link
-                                             
+                                                      
         return ngh_com
     
     def com_ngh_com ( self, com_id):
         com_ngh = {}
-        for node, com in self.membership.items():
+        for node in self.graph.nodes():
+            com = self.membership[node]
             if  com == com_id:  
-                link = 1
-                for ngh in self.adjency[node]:  
+                for ngh, datas in self.graph[node].items():
+                    link = datas.get('weight', 1.)
                     comid = self.membership[ngh]
-                    if com != comid :
-                        com_ngh[comid] = com_ngh.get( comid, 0) + link                       
-    
+                    if comid != com_id and node != ngh:
+                        com_ngh[comid] = com_ngh.get( comid, 0.) + link                      
+                    
         return com_ngh
     
     def merge_com ( self, com_id1, com_id2 ):
@@ -179,40 +184,98 @@ class GraphTolls:
             if random_number not in my_list:
                 return random_number            
     
-    def interlink ( self, internals ):
-        for node in self.graph.nodes():
-            com = self.membership[node]
-            inc = 0.        
-            for neighbor in self.graph[node]:
-                if self.membership[neighbor] == com:
-                    if neighbor == node:
-                        inc += 1
-                    else:
-                        inc += 1 / 2.
-            internals[com] = internals.get( com, 0) + inc
-                     
+                         
     def modularity( self):
         result = 0
-        internals = {}
-        self.interlink(internals)
         for com in set( self.membership.values()):
-            in_degree = internals.get( com, 0.)
+            in_degree = self.internal.get( com, 0.)
             degree = self.DegCom.get( com, 0.)
             result += in_degree / self.m - (( degree / ( 2. * self.m )) ** 2)
             
         return result
     
-    def induced_graph(partition, graph, weight="weight"):
-    
+    def induced_graph( self, weight="weight"):
+            
         ret = nx.Graph()
-        ret.add_nodes_from(partition.values())
-
-        for node1, node2, datas in graph.edges(data=True):
+        ret.add_nodes_from(self.membership.values())
+        for node1, node2, datas in self.graph.edges( data = True ):
             edge_weight = datas.get(weight, 1)
-            com1 = partition[node1]
-            com2 = partition[node2]
-            w_prec = ret.get_edge_data(com1, com2, {weight: 0}).get(weight, 1)
-            ret.add_edge(com1, com2, **{weight: w_prec + edge_weight})
+            com1 = self.membership[node1]
+            com2 = self.membership[node2]
+            w_prec = ret.get_edge_data(com1, com2, {weight: 0}).get( weight, 1)
+            ret.add_edge( com1, com2, **{weight: w_prec + edge_weight})
 
         return ret
-     
+    
+    def modifie_status( self, graph, weight, solution = None ):
+        """Initialize the status of a graph with every node in one community"""
+        self.graph = graph.copy()
+        self.membership = {}
+        self.total_weight = 0
+        self.Degree = {}
+        self.DegCom = {}
+        self.adjency = graph.adj
+        self.internal = {}
+        #self.internals = dict([])
+        self.m = graph.size(weight=weight)
+        self.n = graph.number_of_nodes()
+        if solution is None:
+            for node in graph.nodes():
+                self.membership[node] = node
+                deg = float(graph.degree(node, weight=weight))
+                if deg < 0:
+                    error = "Bad graph type ({})".format(type(graph))
+                    raise ValueError(error)
+                self.Degree[node] = deg
+                self.DegCom[node] = deg
+                edge_data = graph.get_edge_data(node, node, {weight: 0})
+                self.loops[node] = float(edge_data.get(weight, 1))
+                self.internal[node] = self.loops[node]
+        else:
+            for node in graph.nodes():
+                com = solution[node]
+                self.membership[node] = com
+                deg = float(graph.degree( node, weight = weight))
+                self.DegCom[com] = self.DegCom.get(com, 0) + deg
+                self.Degree[node] = deg
+                for neighbor, datas in self.graph[node].items():
+                    edge_weight = datas.get(weight, 1)
+                    if edge_weight <= 0:
+                        error = "Bad graph type ({})".format(type(self.graph))
+                        raise ValueError(error)                 
+                    if self.membership[neighbor] == com:
+                        if neighbor == node:
+                            inc += float( edge_weight)
+                        else:
+                            inc += float( edge_weight)/ 2.
+                
+                self.internal[com] = self.internal.get( com, 0) + inc
+    
+    def renumber( self):
+        """Renumber the values of the dictionary from 0 to n"""
+        count = 0
+        ret = self.membership.copy()
+        new_values = dict([])
+    
+        for key in self.membership.keys():
+            value = self.membership[key]
+            new_value = new_values.get(value, -1)
+            if new_value == -1:
+                new_values[value] = count
+                new_value = count
+                count += 1
+            self.membership[key] = new_value
+    
+    def delet_node( self, node, com, weicom):
+        
+        self.DegCom[com] = float(self.DegCom.get(com, 0.) - self.Degree.get(node, 0.))
+        self.internal[com] = float(self.internal.get(com, 0.) - weicom - self.loops.get(node, 0.))
+        self.membership[node] = None
+       
+        
+    def insert_node( self, node, com, weicom):
+        
+        self.DegCom[com] = float(self.DegCom.get( com, 0.) + self.Degree.get( node, 0.))
+        self.internal[com] = float(self.internal.get( com, 0.) + weicom + self.loops.get( node, 0.))
+        self.membership[node] = com                      
+        
