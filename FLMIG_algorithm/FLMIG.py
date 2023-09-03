@@ -6,17 +6,17 @@ import sys
 import math
 from scipy.stats import expon
 from sklearn.metrics.cluster import normalized_mutual_info_score
-from GraphTools import GraphTolls
+from GraphTools import GraphTolls, Read_Graph
 
 
 
 
 class Fast_local_Move_IG(GraphTolls) :
-    def __init__( self, Nb, Beta,path):    
+    def __init__( self, Nb, Beta,path, graph):    
         self.Nb = Nb
         self.Beta = Beta
         self.Mod_val = 0
-        super(Fast_local_Move_IG, self).__init__(path)
+        super(Fast_local_Move_IG, self).__init__(path, graph)
 
     def expon (self , value , teta):
         x = (1/teta)*(value)
@@ -25,9 +25,9 @@ class Fast_local_Move_IG(GraphTolls) :
     
 
                          
-    def GCH( self):
+    def GCH( self, graph):
          
-        vertex_list = list(self.graph.nodes())
+        vertex_list = list(graph.nodes())
         node = random.choice(vertex_list)
         #print("nnnn",node)
         com_id = 0
@@ -36,7 +36,7 @@ class Fast_local_Move_IG(GraphTolls) :
         #print(self.Degree)
         vertex_list.remove(node)
         for node in  vertex_list:    
-            comm_ngh = super().neigh_comm( node)
+            comm_ngh = super().neigh_comm( node , graph)
             MAX_Q = 0
             pos = -1
             for com, Kbv in comm_ngh.items():    
@@ -58,43 +58,78 @@ class Fast_local_Move_IG(GraphTolls) :
         
         return  self.membership 
 
-    def Destruction( self):       
-        drop_node = []
-        merg_node = []
+    def Destruction( self, graph):       
         cut_len = int(len(self.membership)* float(self.Beta)) 
-        index_community = random.sample( list(self.membership.keys()), cut_len )
+        drop_node = random.sample( list(self.membership.keys()), cut_len )
         #print("list", cut_len, index_community)
         #print("degcomunity", self.DegCom)
         #print("mm",self.membership)
-        for al in index_community:
+        for al in drop_node:
             com_id = self.membership[al]
-            wgh = super().neigh_comm(al)    
-            super().delet_node(al, com_id, wgh.get(com_id, 0.))
-            if self.internal[com_id] == 0.:
-                del self.internal[com_id]            
+            wgh = super().neigh_comm(al, graph)    
+            super().delet_node( al, com_id, wgh.get( com_id, 0.))
+                                    
                       
         #merg_node = [ nod for nod in self.Node_list if nod not in index_community] 
-        return  self.membership, index_community
+        return  self.membership, drop_node
     
-    def Reconstruction( self, drop_node):
-        self.__affect_node(drop_node)
-        self.__randomcom()
-        self.__merge_community()                 
-                                                                          
+    def Reconstruction( self, drop_node, graph):
+        p_list = []
+        self.__affect_node( graph, drop_node)
+        #print(solution)
+        #print( self.internal)
+        #print(self.DegCom)
+        self.__randomcom( graph)
+        s = self.__merge_community(graph)
+        #print("befor internal", self.internal)
+        n_mod = super().modularity()
+        #print("befor", n_mod)
+        mod_graph = graph.copy()
+        p = super().renumber()
+        p_list.append(p)
+        mod_graph = super().induced_graph( p, mod_graph, weight='weight')
+        #print(mod_graph)
+        super().modifie_status( mod_graph, weight = 'weight')
+        Q_val = n_mod
+        while True :
+            #print(len(s))
+            solution = self.FL_move(mod_graph)
+            #print(len(solution))
+            #solution = self.__merge_community(mod_graph)
+            #print(len(solution))
+            n_mod = super().modularity()
+            #print(n_mod)
+            
+            if n_mod - Q_val < 0.0000001:
+                break
+        
+            Q_val = n_mod
+            p = super().renumber()
+            p_list.append(p)
+            mod_graph = super().induced_graph( p, mod_graph, weight='weight')
+            super().modifie_status( mod_graph, weight='weight')
+        
+        P = super().best_sol( p_list, len(p_list)- 1)    
+        super().init( graph, P, weight='weight')                                                                          
+        #print("after", super().modularity())
+        #print("after internal",self.internal)    
         return  self.membership
 
 
-    def FL_move(self ):
-        Qv = deque([ i for i in self.graph.nodes()])
+    def FL_move( self, graph):
+        Qv = deque([ i for i in graph.nodes()])
         random.shuffle(Qv)
         while Qv:
             vsele = Qv.popleft()
+            #print(vsele)
             degree = self.Degree[vsele]
             #qum = 0
+            #print(degree)
+            #print(self.loops)
             com_befor = self.membership[vsele]
-            ngh_com = super().neigh_comm(vsele)
+            ngh_com = super().neigh_comm(vsele, graph)
             #print("combefor", com_befor,"nghhhh", ngh_com)
-            dvc = super().ngh_node(vsele, com_befor)
+            dvc = super().ngh_node(vsele, com_befor, graph)
             devc = self.DegCom[com_befor]
             maxq = 0
             #print("vsele", vsele)
@@ -102,12 +137,11 @@ class Fast_local_Move_IG(GraphTolls) :
             #dd = (degree) / ( self.m * 2.)
             m_com = com_befor             
             for com, dvcp in ngh_com.items() : 
-                #dvcp = ngh_com[com]
-                #if com != com_befor:
                 devcp = self.DegCom[com]
-                deq = (1/self.m) * ( dvcp-dvc )- ((degree)/(2.*self.m**2.)) *( devcp-devc+degree )
-                #deq = dvcp - (devcp)* dd
-                #print("deq",deq) 
+                #deq = ( 1/self.m ) * ( dvcp - dvc ) - ( (degree)/(2.*self.m**2.)) *( devcp-devc+degree )
+                #deq = dvcp - (devcp )*(degree / (self.m * 2.))
+                deq = (1/self.m)*(dvcp-dvc)+(degree/(2.*self.m**2.))*(devc-devcp -degree)
+                #print(deq)
                 if deq > maxq :
                     maxq = deq
                     m_com = com
@@ -115,16 +149,16 @@ class Fast_local_Move_IG(GraphTolls) :
             super().delet_node( vsele, com_befor, ngh_com.get( com_befor, 0.))            
             super().insert_node( vsele, m_com, ngh_com.get( m_com, 0.))            
             if m_com != com_befor:                                       
-                for veg in self.graph[vsele]:
+                for veg in graph[vsele]:
                     if self.membership[veg] != m_com and veg not in Qv:    
                         Qv.append(veg)       
                                       
         return self.membership
     
-    def __affect_node(self, drop_node = None):
+    def __affect_node ( self, graph, drop_node = None):
         random.shuffle(drop_node)
         for node in  drop_node:    
-            comm_ngh = super().neigh_comm( node)
+            comm_ngh = super().neigh_comm( node, graph)
             MAX_Q = 0
             pos = -1
             for com, Kbv in comm_ngh.items():    
@@ -142,21 +176,22 @@ class Fast_local_Move_IG(GraphTolls) :
                 com_id = super().generate_random_not_in_list(set(self.membership.values()))
                 super().insert_node( node, com_id, comm_ngh.get( com_id, 0.))
                 
-    def __randomcom ( self):
-        
-        for vsele in self.graph.nodes():
+    def __randomcom ( self ,graph):
+        for vsele in  graph.nodes():
             degree = self.Degree[vsele]
             qum={}
             com_befor = self.membership[vsele]
-            ngh_com = super().neigh_comm( vsele)
+            ngh_com = super().neigh_comm( vsele, graph)
             #print( vsele, com_befor, ngh_com)
-            dvc = super().ngh_node(vsele, com_befor)
+            dvc = super().ngh_node(vsele, com_befor, graph)
             devc = self.DegCom[com_befor]              
             for com  in ngh_com :
                 if com != com_befor:
                     dvcp = ngh_com[com]
                     devcp = self.DegCom[com]
-                    deq = (1/self.m)*(dvcp-dvc)-(degree/(2.*self.m**2.))*(devcp-devc+degree)
+                    deq = (1/self.m)*(dvcp-dvc)+(degree/(2.*self.m**2.))*(devc-devcp -degree)
+                    #deq = dvcp - (devcp )*(degree / (self.m * 2.))
+                    #print(deq)
                     if deq > 0: 
                         qum[com] = deq
             
@@ -168,24 +203,25 @@ class Fast_local_Move_IG(GraphTolls) :
                 super().delet_node( vsele, com_befor, ngh_com.get( com_befor, 0.))
                 super().insert_node( vsele, com_n, ngh_com.get( com_n, 0.))        
         
-    def __merge_community( self):
+    def __merge_community( self, graph):
         modified = True
         while modified :
             modified = False         
             community = set(self.membership.values())
-            #print(community, self.membership, self.DegCom)
+            #print(community, self.membership)
             visited = { i : False for i in community }
             for com1 in community:
                 if visited[com1] == False:
+                    #print(com1)
                     maxqq = 0
                     poss = -1
-                    ngh_comm = super().com_ngh_com(com1)
+                    ngh_comm = super().com_ngh_com(com1, graph)
                     #print(com1 , ngh_comm)
                     for comm ,Kbv in ngh_comm.items():
-                        delta_Qq =  Kbv  - ( self.DegCom[com1] * self.DegCom[comm] ) / ( 2. * self.m )
-                    #print("delta",delta_Q)
-                        if delta_Qq > maxqq :
-                            maxqq= delta_Qq
+                        delta_Q =  Kbv/self.m  - ( self.DegCom[com1] * self.DegCom[comm] ) / ( 2. * self.m**2 )
+                        #print("delta",delta_Q)
+                        if delta_Q > maxqq :
+                            maxqq= delta_Q
                             poss = comm
                             
                     if maxqq > 0:
@@ -196,15 +232,19 @@ class Fast_local_Move_IG(GraphTolls) :
                         del self.DegCom[poss]
                         del self.internal[poss]
                         visited[poss] = True
-  
-    def Run_FMLIG (self):
+        
+        return self.membership        
+           
+    def Run_FMLIG ( self, graph):
         start = time.time()
-        soltion = self.GCH()
+        soltion = self.GCH( graph)
         #print("solution", self.membership)
         #print(self.DegCom)
-        soltion = self.FL_move()
+        #super().init( graph, soltion)
+        soltion = self.FL_move( graph)
         best_solution = copy.copy(soltion)
-        #print(" internal ", self.internal)
+        #print(" internal ", self.internal# )
+        #super().init( graph, soltion)
         Q_best = super().modularity()
         #print("qqqqqqqqqqqq",Q_best)
         T_init = 0.025 * Q_best
@@ -218,15 +258,16 @@ class Fast_local_Move_IG(GraphTolls) :
             #print(self.membership)
             #soltion = self.FL_move( weight = 'weight')
             #print(super().modularity( weight ='weight'))
-            #print("after internal",self.membership, self.internal)
-            soltion, drop_nodes = self.Destruction()
+            #print(" befor internal", self.internal)
+            soltion, drop_nodes = self.Destruction(graph)
             #print("after destruction", self.membership, drop_nodes , self.internal)
-            soltion = self.Reconstruction( drop_nodes)
+            soltion = self.Reconstruction( drop_nodes, graph)
             #print("after reconstruction",super().modularity())
-              
-            soltion = self.FL_move()   
-            #print("after fast", soltion)
-            #print("after the fast loacl")                      
+            #super().init(graph, soltion, weight = 'weight')  
+            soltion = self.FL_move(graph)   
+            #print("after fast", self.internal)
+            #print("after the fast loacl")
+            #super().init(graph, soltion)                      
             Q2 = super().modularity()
             #print("Q2", Q2)
             #for data in c_graph.edges( data= True):
@@ -247,6 +288,8 @@ class Fast_local_Move_IG(GraphTolls) :
             else:
                 T = T*0.9
             
+            soltion = super().renumber()
+            super().init( graph, soltion, weight='weight')                 
             nb_iter = nb_iter + 1
         
         #print(status_list)
@@ -264,16 +307,17 @@ def de_main():
     path = sys.argv[1]
     Number_iter = int(sys.argv[2])
     Beta = sys.argv[3]
-    data = GraphTolls(path)
-    graph = data.Read_Graph()
+    
+    graph = Read_Graph(path)
+    data = GraphTolls(path, graph)
     NMI_list = []
     Time_list = [] 
     Q_list = []
     nb_run = 0
     while nb_run < int(sys.argv[5]) :
         print("rb",nb_run)
-        communities = Fast_local_Move_IG( Number_iter, Beta, path)
-        mod,community,tim = communities.Run_FMLIG() 
+        communities = Fast_local_Move_IG( Number_iter, Beta, path, graph)
+        mod,community,tim = communities.Run_FMLIG(graph) 
         #print(community)
         Q_list.append(mod)
         Time_list.append(tim)

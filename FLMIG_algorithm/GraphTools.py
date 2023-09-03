@@ -7,31 +7,18 @@ import numpy as np
 
 class GraphTolls:
     
-    def __init__( self, Path) -> None:
+    def __init__( self, Path , graph) -> None:
         self.Path = Path
-        self.graph = self.Read_Graph()
-        self.m = self.graph.size( weight= 'weight')
-        self.n = self.graph.number_of_nodes()
-        self.adjency = self.graph.adj
-        self.Node_list = {i : i for i in self.graph.nodes()}
-        self.Degree = dict(self.graph.degree())
+        self.m = graph.size( weight= 'weight')
+        self.n =  graph.number_of_nodes()
+        #self.adjency = graph.adj
+        self.Node_list = {i : i for i in graph.nodes()}
+        self.Degree = dict(graph.degree())
         self.DegCom = {}
-        self.membership = { i : None for i in self.graph.nodes() }
+        self.membership = { i : None for i in graph.nodes() }
         self.loops = {}
         self.internal = {}
         
-    def Read_Graph( self):
-        
-        if self.Path[len(self.Path)-3: ] == 'txt' or self.Path[len(self.Path)-3: ] == 'dat':
-            Graph = nx.read_edgelist(self.Path, nodetype = int, data=[('weight', float)])
-            graph = nx.Graph(Graph)
-        elif self.Path[len(self.Path)-3: ] == 'gml':
-            Graph = nx.read_gml(self.Path,label = 'id')
-            graph = nx.Graph(Graph)
-        else :
-            raise TypeError (" the type of graph is not suportable or not no such file or directory")
-
-        return graph 
     
     
     def Read_GroundTruth( self, path):
@@ -80,13 +67,13 @@ class GraphTolls:
         else:
             return max(arg)
   
-    def avg( self,arg):
+    def avg( self, arg):
         if len(arg) < 1:
             return None
         else:
             return sum(arg) / len(arg)   
     
-    def median( self,arg):
+    def median( self, arg):
         if len(arg) < 1:
             return None
         else:
@@ -122,33 +109,34 @@ class GraphTolls:
                 return key
         
         
-    def ngh_node ( self, node, com ):
+    def ngh_node ( self, node, com, graph ):
         ngh_com = 0.
-        for ngh, datas in self.graph[node].items():
-            link = datas.get('weight', 1)  
+        for ngh, datas in graph[node].items():
+            link = datas.get('weight', 1.)  
             if  self.membership[ngh] == com:
                 ngh_com += link
                              
         return ngh_com
     
-    def neigh_comm ( self, node):
+    def neigh_comm ( self, node, graph):
         ngh_com = {}
-        for ngh, datas in self.graph[node].items():
-            link = datas.get( 'weight', 1)
-            #print("weigh",weight, link)            
+        for ngh, datas in graph[node].items():
+            link = float(datas.get( 'weight', 1.))
+            #print("weigh", link)            
             if  self.membership[ngh] != None and node != ngh:
                 com_id = self.membership[ngh]
-                ngh_com[com_id] = ngh_com.get( com_id, 0) + link
+                ngh_com[com_id] = ngh_com.get( com_id, 0.) + link
                                                       
         return ngh_com
     
-    def com_ngh_com ( self, com_id):
+    def com_ngh_com ( self, com_id, graph):
         com_ngh = {}
-        for node in self.graph.nodes():
+        for node in  graph.nodes(): 
             com = self.membership[node]
             if  com == com_id:  
-                for ngh, datas in self.graph[node].items():
-                    link = datas.get('weight', 1.)
+                for ngh, datas in  graph[node].items():
+                    link = float(datas.get('weight', 1.))
+                    #print(link)
                     comid = self.membership[ngh]
                     if comid != com_id and node != ngh:
                         com_ngh[comid] = com_ngh.get( comid, 0.) + link                      
@@ -190,18 +178,19 @@ class GraphTolls:
         for com in set( self.membership.values()):
             in_degree = self.internal.get( com, 0.)
             degree = self.DegCom.get( com, 0.)
-            result += in_degree / self.m - (( degree / ( 2. * self.m )) ** 2)
+            #print(self.m)
+            result += in_degree / self.m - (( degree / ( 2. * self.m )) ** 2.)
             
         return result
     
-    def induced_graph( self, weight="weight"):
+    def induced_graph( self, p, graph, weight):
             
         ret = nx.Graph()
-        ret.add_nodes_from(self.membership.values())
-        for node1, node2, datas in self.graph.edges( data = True ):
+        ret.add_nodes_from(p.values())
+        for node1, node2, datas in graph.edges( data = True ):
             edge_weight = datas.get(weight, 1)
-            com1 = self.membership[node1]
-            com2 = self.membership[node2]
+            com1 = p[node1]
+            com2 = p[node2]
             w_prec = ret.get_edge_data(com1, com2, {weight: 0}).get( weight, 1)
             ret.add_edge( com1, com2, **{weight: w_prec + edge_weight})
 
@@ -209,14 +198,13 @@ class GraphTolls:
     
     def modifie_status( self, graph, weight, solution = None ):
         """Initialize the status of a graph with every node in one community"""
-        self.graph = graph.copy()
-        self.membership = {}
         self.total_weight = 0
         self.Degree = {}
         self.DegCom = {}
-        self.adjency = graph.adj
+        #self.adjency = graph.adj
         self.internal = {}
-        #self.internals = dict([])
+        self.membership = {}
+        self.loops = {}
         self.m = graph.size(weight=weight)
         self.n = graph.number_of_nodes()
         if solution is None:
@@ -228,8 +216,9 @@ class GraphTolls:
                     raise ValueError(error)
                 self.Degree[node] = deg
                 self.DegCom[node] = deg
-                edge_data = graph.get_edge_data(node, node, {weight: 0})
-                self.loops[node] = float(edge_data.get(weight, 1))
+                edge_data = graph.get_edge_data( node, node, {'weight': 0})
+                #print(edge_data)
+                self.loops[node] = float(edge_data.get('weight', 1))
                 self.internal[node] = self.loops[node]
         else:
             for node in graph.nodes():
@@ -265,17 +254,75 @@ class GraphTolls:
                 new_value = count
                 count += 1
             self.membership[key] = new_value
-    
+        return self.membership
+        
     def delet_node( self, node, com, weicom):
         
         self.DegCom[com] = float(self.DegCom.get(com, 0.) - self.Degree.get(node, 0.))
         self.internal[com] = float(self.internal.get(com, 0.) - weicom - self.loops.get(node, 0.))
         self.membership[node] = None
-       
         
     def insert_node( self, node, com, weicom):
-        
+            
         self.DegCom[com] = float(self.DegCom.get( com, 0.) + self.Degree.get( node, 0.))
         self.internal[com] = float(self.internal.get( com, 0.) + weicom + self.loops.get( node, 0.))
         self.membership[node] = com                      
+    
+    def init( self, graph, solution, weight = 'weight'):
+        self.DegCom = {}
+        self.internal = {}
+        self.Degree= {}
+        self.membership = {}
+        self.m = graph.size( weight= 'weight')
+        self.n =  graph.number_of_nodes()
+        self.loops = {}    
+        for node in  graph.nodes():
+            com = solution[node]
+            self.membership[node] = com
+            deg = float( graph.degree( node, 'weight'))
+            self.DegCom[com] = self.DegCom.get(com, 0.) + deg
+            self.Degree[node] = deg
+            edge_data = graph.get_edge_data(node, node, {weight: 0})
+            #self.loops[node] = float(edge_data.get(weight, 1))
+            inc = 0.
+            for neighbor, datas in graph[node].items():
+                edge_weight = datas.get( 'weight', 1.)
+                if edge_weight <= 0:
+                    error = "Bad graph type ({})".format(type( graph))
+                    raise ValueError(error)                 
+                if solution[neighbor] == com:
+                    if neighbor == node:
+                        inc += float( edge_weight)
+                    else:
+                        inc += float( edge_weight) / 2.
+                
+            self.internal[com] = self.internal.get( com, 0.) + inc
+
+    def best_sol( self, dend, level):
+         
+        #print(dend) 
+        partition = dend[0].copy()
+        #print(partition)
+        for index in range( 1, level + 1):
+            for node, community in partition.items():
+                partition[node] = dend[index][community]
         
+        return partition
+    
+         
+
+
+def Read_Graph( Path):
+        
+    if Path[len(Path)-3: ] == 'txt' or Path[len(Path)-3: ] == 'dat':
+        Graph = nx.read_edgelist( Path, nodetype = int , data = [('weight', float)])
+        graph = nx.Graph(Graph)
+    elif Path[len(Path)-3: ] == 'gml':
+        Graph = nx.read_gml( Path, label = 'id')
+        graph = nx.Graph(Graph)
+    else :
+        raise TypeError (" the type of graph is not suportable or not no such file or directory")
+
+    return graph 
+
+                
