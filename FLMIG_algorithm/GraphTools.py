@@ -29,7 +29,7 @@ class GraphTolls:
                 x = x.rstrip()
                 result.append(x.split()[1])
 
-        true_partion = [int(x)for x in result]
+        true_partion = [ int(x) for x in result]
         return true_partion
     
      
@@ -129,6 +129,16 @@ class GraphTolls:
                                                       
         return ngh_com
     
+    def boundry_node( self, graph):
+        b_node = {}
+        for node in graph.nodes():
+            com = self.membership[node]
+            for ngh,data in graph[node].items():
+                if self.membership[ngh]!= com:
+                    b_node[node] = self.membership[ngh]
+        
+        return b_node
+    
     def com_ngh_com ( self, com_id, graph):
         com_ngh = {}
         for node in  graph.nodes(): 
@@ -168,7 +178,7 @@ class GraphTolls:
                
     def generate_random_not_in_list( self, my_list):
         while True:
-            random_number = random.randint(0, self.m)
+            random_number = random.randint( 0, self.m)
             if random_number not in my_list:
                 return random_number            
     
@@ -210,7 +220,7 @@ class GraphTolls:
         if solution is None:
             for node in graph.nodes():
                 self.membership[node] = node
-                deg = float(graph.degree(node, weight=weight))
+                deg = float(graph.degree(node, weight='weight'))
                 if deg < 0:
                     error = "Bad graph type ({})".format(type(graph))
                     raise ValueError(error)

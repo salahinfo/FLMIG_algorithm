@@ -11,6 +11,7 @@ from GraphTools import GraphTolls, Read_Graph
 
 
 
+
 class Fast_local_Move_IG(GraphTolls) :
     def __init__( self, Nb, Beta,path, graph):    
         self.Nb = Nb
@@ -18,91 +19,88 @@ class Fast_local_Move_IG(GraphTolls) :
         self.Mod_val = 0
         super(Fast_local_Move_IG, self).__init__(path, graph)
 
-    def expon (self , value , teta):
-        x = (1/teta)*(value)
-        p =float(math.exp(x))
-        return p      
-    
+    def expon ( self , value , teta):
 
-                         
-    def GCH( self, graph):
-         
-        vertex_list = list(graph.nodes())
-        node = random.choice(vertex_list)
-        #print("nnnn",node)
-        com_id = 0
-        self.membership[node] = com_id
-        self.DegCom[com_id] = self.Degree[node]
-        #print(self.Degree)
-        vertex_list.remove(node)
-        for node in  vertex_list:    
-            comm_ngh = super().neigh_comm( node , graph)
-            MAX_Q = 0
-            pos = -1
-            for com, Kbv in comm_ngh.items():    
-                db = self.DegCom[com]
-                delta_Q =  Kbv - self.Degree[node]/(2.*self.m)*db
-                #print(delta_Q)
-                if delta_Q > MAX_Q:
-                    MAX_Q = delta_Q
-                    pos = com
-                else :
-                    delta_Q = 0
-            
-            if MAX_Q > 0:
-                super().insert_node( node, pos, comm_ngh.get( pos , 0))
-            else:
-                com_id = com_id + 1
-                super().insert_node(node , com_id, comm_ngh.get(com_id, 0))
-                                     
+        value = math.log(value)
+        x = value / teta
+        p = math.exp(x)
+
+        return p 
+
+                          
+
+    def Destruction( self, graph):
         
-        return  self.membership 
-
-    def Destruction( self, graph):       
+        s = self.renumber()
+        super().init( graph, s, weight='weight') 
         cut_len = int(len(self.membership)* float(self.Beta)) 
         drop_node = random.sample( list(self.membership.keys()), cut_len )
-        #print("list", cut_len, index_community)
-        #print("degcomunity", self.DegCom)
-        #print("mm",self.membership)
         for al in drop_node:
             com_id = self.membership[al]
             wgh = super().neigh_comm(al, graph)    
             super().delet_node( al, com_id, wgh.get( com_id, 0.))
-                                    
-                      
-        #merg_node = [ nod for nod in self.Node_list if nod not in index_community] 
-        return  self.membership, drop_node
+            if al not in self.membership.values():
+                super().insert_node( al, al, wgh.get( al, 0.))
+            else:
+                com_id = super().generate_random_not_in_list(set(self.membership.values()))
+                super().insert_node( al, com_id, wgh.get( com_id, 0.))     
+   
+        return  self.membership, drop_node 
+
+
+    def Reconstruction( self,  graph, soltion, drop_node):
+          
+        self.__randomcom( graph, drop_node)
     
-    def Reconstruction( self, drop_node, graph):
+        soltion = self.con_dense(graph)
+                
+        return  soltion
+
+
+    def flocalmove ( self, graph, resolution=1):
+    
+        Nodelist = deque(graph.nodes())
+        random.shuffle(Nodelist)
+        while Nodelist:
+            node = Nodelist.popleft()
+            com_node = self.membership[node]
+            degc_totw = self.Degree.get(node, 0.) / (self.m * 2.)  # NOQA
+            neigh_communities = super().neigh_comm( node, graph )
+            super().delet_node(node, com_node, neigh_communities.get(com_node, 0.))
+            best_com = com_node
+            best_increase = 0
+            for com, dnc in neigh_communities.items():
+                Delat_Q = resolution * dnc - self.DegCom.get(com, 0.) * degc_totw
+                    #print(incr)
+                if Delat_Q > best_increase:
+                    best_increase = Delat_Q
+                    best_com = com
+            super().insert_node(node, best_com, neigh_communities.get(best_com, 0.))
+            if best_com != com_node:
+                for veg in graph[node]:
+                    if self.membership[veg] != best_com:    
+                        Nodelist.append(veg)
+           
+        
+        return self.membership
+
+
+    def con_dense(self, graph):
         p_list = []
-        self.__affect_node( graph, drop_node)
-        #print(solution)
-        #print( self.internal)
-        #print(self.DegCom)
-        self.__randomcom( graph)
-        s = self.__merge_community(graph)
-        #print("befor internal", self.internal)
         n_mod = super().modularity()
-        #print("befor", n_mod)
         mod_graph = graph.copy()
         p = super().renumber()
         p_list.append(p)
         mod_graph = super().induced_graph( p, mod_graph, weight='weight')
-        #print(mod_graph)
         super().modifie_status( mod_graph, weight = 'weight')
         Q_val = n_mod
         while True :
-            #print(len(s))
-            solution = self.FL_move(mod_graph)
-            #print(len(solution))
-            #solution = self.__merge_community(mod_graph)
-            #print(len(solution))
+            solution = self.flocalmove(mod_graph)
+            #solution = self.FL_move(mod_graph)
             n_mod = super().modularity()
-            #print(n_mod)
-            
             if n_mod - Q_val < 0.0000001:
                 break
-        
+            
             Q_val = n_mod
             p = super().renumber()
             p_list.append(p)
@@ -111,172 +109,72 @@ class Fast_local_Move_IG(GraphTolls) :
         
         P = super().best_sol( p_list, len(p_list)- 1)    
         super().init( graph, P, weight='weight')                                                                          
-        #print("after", super().modularity())
-        #print("after internal",self.internal)    
-        return  self.membership
 
-
-    def FL_move( self, graph):
-        Qv = deque([ i for i in graph.nodes()])
-        random.shuffle(Qv)
-        while Qv:
-            vsele = Qv.popleft()
-            #print(vsele)
-            degree = self.Degree[vsele]
-            #qum = 0
-            #print(degree)
-            #print(self.loops)
-            com_befor = self.membership[vsele]
-            ngh_com = super().neigh_comm(vsele, graph)
-            #print("combefor", com_befor,"nghhhh", ngh_com)
-            dvc = super().ngh_node(vsele, com_befor, graph)
-            devc = self.DegCom[com_befor]
-            maxq = 0
-            #print("vsele", vsele)
-            #print(self.m)
-            #dd = (degree) / ( self.m * 2.)
-            m_com = com_befor             
-            for com, dvcp in ngh_com.items() : 
-                devcp = self.DegCom[com]
-                #deq = ( 1/self.m ) * ( dvcp - dvc ) - ( (degree)/(2.*self.m**2.)) *( devcp-devc+degree )
-                #deq = dvcp - (devcp )*(degree / (self.m * 2.))
-                deq = (1/self.m)*(dvcp-dvc)+(degree/(2.*self.m**2.))*(devc-devcp -degree)
-                #print(deq)
-                if deq > maxq :
-                    maxq = deq
-                    m_com = com
-                        
-            super().delet_node( vsele, com_befor, ngh_com.get( com_befor, 0.))            
-            super().insert_node( vsele, m_com, ngh_com.get( m_com, 0.))            
-            if m_com != com_befor:                                       
-                for veg in graph[vsele]:
-                    if self.membership[veg] != m_com and veg not in Qv:    
-                        Qv.append(veg)       
-                                      
-        return self.membership
-    
-    def __affect_node ( self, graph, drop_node = None):
-        random.shuffle(drop_node)
-        for node in  drop_node:    
-            comm_ngh = super().neigh_comm( node, graph)
-            MAX_Q = 0
-            pos = -1
-            for com, Kbv in comm_ngh.items():    
-                db = self.DegCom[com]
-                delta_Q =  Kbv - self.Degree[node]/(2.*self.m)*db
-                if delta_Q > MAX_Q:
-                    MAX_Q = delta_Q
-                    pos = com
-                else :
-                    delta_Q = 0
-            
-            if MAX_Q > 0:
-                super().insert_node( node, pos, comm_ngh.get( pos, 0.))
-            else:
-                com_id = super().generate_random_not_in_list(set(self.membership.values()))
-                super().insert_node( node, com_id, comm_ngh.get( com_id, 0.))
+        return self.membership    
                 
-    def __randomcom ( self ,graph):
-        for vsele in  graph.nodes():
-            degree = self.Degree[vsele]
+    def __randomcom ( self , graph, drop_node):
+        random.shuffle(drop_node)
+        for vsele in  drop_node:    
+            #degree = self.Degree[vsele]
             qum={}
+            check = False
             com_befor = self.membership[vsele]
             ngh_com = super().neigh_comm( vsele, graph)
-            #print( vsele, com_befor, ngh_com)
-            dvc = super().ngh_node(vsele, com_befor, graph)
-            devc = self.DegCom[com_befor]              
-            for com  in ngh_com :
+            degc_totw = self.Degree.get(vsele, 0.) / (2.*self.m )
+            #print(degc_totw)
+            check = False
+            com_n = com_befor
+            Delat_Q = 0
+            for com, dvcp  in ngh_com.items() :
                 if com != com_befor:
-                    dvcp = ngh_com[com]
-                    devcp = self.DegCom[com]
-                    deq = (1/self.m)*(dvcp-dvc)+(degree/(2.*self.m**2.))*(devc-devcp -degree)
-                    #deq = dvcp - (devcp )*(degree / (self.m * 2.))
-                    #print(deq)
-                    if deq > 0: 
-                        qum[com] = deq
-            
-            #print("q in reconstruction", qum)
-            if len(qum) > 0:  
-                prb = [ self.expon( i, 0.1) for k,i in qum.items() ]
+                    Delat_Q = dvcp - self.DegCom.get(com, 0.) * degc_totw
+                    if Delat_Q > 0:
+                        #print(Delat_Q) 
+                        qum[com] = Delat_Q
+                        check = True
+
+            if check :
+                prb = [ self.expon( i, 0.01) for k,i in qum.items() ]
                 com_n = super().weighted_choice( list(qum.keys()), prb)
-                #print(com_n , ngh_com)
                 super().delet_node( vsele, com_befor, ngh_com.get( com_befor, 0.))
-                super().insert_node( vsele, com_n, ngh_com.get( com_n, 0.))        
-        
-    def __merge_community( self, graph):
-        modified = True
-        while modified :
-            modified = False         
-            community = set(self.membership.values())
-            #print(community, self.membership)
-            visited = { i : False for i in community }
-            for com1 in community:
-                if visited[com1] == False:
-                    #print(com1)
-                    maxqq = 0
-                    poss = -1
-                    ngh_comm = super().com_ngh_com(com1, graph)
-                    #print(com1 , ngh_comm)
-                    for comm ,Kbv in ngh_comm.items():
-                        delta_Q =  Kbv/self.m  - ( self.DegCom[com1] * self.DegCom[comm] ) / ( 2. * self.m**2 )
-                        #print("delta",delta_Q)
-                        if delta_Q > maxqq :
-                            maxqq= delta_Q
-                            poss = comm
-                            
-                    if maxqq > 0:
-                        modified = True
-                        self.merge_com( com1, poss)              
-                        self.DegCom[com1] = self.DegCom[com1] + self.DegCom[poss]
-                        self.internal[com1] = self.internal[com1] + self.internal[poss]+ ngh_comm.get(poss, 0.)
-                        del self.DegCom[poss]
-                        del self.internal[poss]
-                        visited[poss] = True
-        
-        return self.membership        
+                super().insert_node( vsele, com_n, ngh_com.get( com_n, 0.))                         
+  
            
     def Run_FMLIG ( self, graph):
         start = time.time()
-        soltion = self.GCH( graph)
-        #print("solution", self.membership)
-        #print(self.DegCom)
-        #super().init( graph, soltion)
-        soltion = self.FL_move( graph)
+
+        super().modifie_status( graph, weight='weight') 
+        soltion = self.flocalmove( graph)
+        print( time.time() - start)
         best_solution = copy.copy(soltion)
         #print(" internal ", self.internal# )
         #super().init( graph, soltion)
         Q_best = super().modularity()
-        #print("qqqqqqqqqqqq",Q_best)
+        print("q1",Q_best)
         T_init = 0.025 * Q_best
         T = T_init
         nb_iter = 0
         status_list = []
         while nb_iter < self.Nb:
             Q1 = super().modularity()
-            #print("q1q1qqqqqqq1", Q1)
+            
             incumbent_solution = copy.copy(soltion)
-            #print(self.membership)
-            #soltion = self.FL_move( weight = 'weight')
-            #print(super().modularity( weight ='weight'))
-            #print(" befor internal", self.internal)
-            soltion, drop_nodes = self.Destruction(graph)
-            #print("after destruction", self.membership, drop_nodes , self.internal)
-            soltion = self.Reconstruction( drop_nodes, graph)
-            #print("after reconstruction",super().modularity())
-            #super().init(graph, soltion, weight = 'weight')  
-            soltion = self.FL_move(graph)   
-            #print("after fast", self.internal)
-            #print("after the fast loacl")
-            #super().init(graph, soltion)                      
+        
+            soltion, drop_nod = self.Destruction(graph)
+            
+            soltion = self.Reconstruction( graph,soltion, drop_nod)
+             
+            super().init(graph, soltion, weight = 'weight')  
+        
+            soltion = self.flocalmove(graph)
+                                  
             Q2 = super().modularity()
-            #print("Q2", Q2)
-            #for data in c_graph.edges( data= True):
-            #    print(data)
-                
+            print("Q2", Q2, " number of iteration", nb_iter)
+            #print("q2",Q2, "time", time.time() - start)        
             if Q2 > Q_best:
                 best_solution = copy.copy(soltion)
-                Q_best = Q2    
-            
+                Q_best = Q2
+                           
             P = random.random()
             if Q2 < Q1 and P > math.exp((Q2 - Q1)//T):
                 soltion = copy.copy(incumbent_solution)
@@ -287,18 +185,12 @@ class Fast_local_Move_IG(GraphTolls) :
               
             else:
                 T = T*0.9
-            
-            soltion = super().renumber()
-            super().init( graph, soltion, weight='weight')                 
+                           
             nb_iter = nb_iter + 1
         
         #print(status_list)
         end = time.time()
         t = end - start
-        #partition = status_list[0].copy()
-        #for index in range( 1, len(status_list)-1):
-            #for node, community in partition.items():
-                #partition[node] = status_list[index][community]
  
         return Q_best, best_solution, t
         
@@ -315,7 +207,7 @@ def de_main():
     Q_list = []
     nb_run = 0
     while nb_run < int(sys.argv[5]) :
-        print("rb",nb_run)
+        #print("rb",nb_run)
         communities = Fast_local_Move_IG( Number_iter, Beta, path, graph)
         mod,community,tim = communities.Run_FMLIG(graph) 
         #print(community)
@@ -324,7 +216,9 @@ def de_main():
         #label = communities.lebel_node(community)  
         if sys.argv[4]!= 'None':
             True_partition = data.Read_GroundTruth(sys.argv[4])
-            NMI = normalized_mutual_info_score(True_partition,community)
+            #print(True_partition)
+            community = dict(sorted(community.items()))
+            NMI = normalized_mutual_info_score( True_partition, list(community.values()))
             NMI_list.append(NMI)
             
             
@@ -351,14 +245,14 @@ if __name__ == '__main__':
 
    
     if  sys.argv[4] != 'None':
-        NMI_max,Q_Max,Q_avg ,Q_std,time_run = de_main()
+        NMI_max, Q_Max,Q_avg , Q_std, time_run = de_main()
         print("NMI_max",NMI_max)
         print("the value of Q_max",Q_Max)
         print("the value of Q_avg",Q_avg)
         print("the value of Q_std",Q_std)
         print("time ",time_run)
     elif sys.argv[4] == 'None' :
-        Q_max, Q_avg, Q_std,time_run = de_main()
+        Q_max, Q_avg, Q_std, time_run = de_main()
         print("the value of Q_max",Q_max)
         print("the value of Q_avg",Q_avg)
         print("the value of Q_std",Q_std)
