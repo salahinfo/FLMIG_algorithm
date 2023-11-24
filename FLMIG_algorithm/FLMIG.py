@@ -1,3 +1,4 @@
+from cProfile import label
 import random
 from collections import deque,Counter
 import copy
@@ -7,8 +8,8 @@ import math
 from scipy.stats import expon
 from sklearn.metrics.cluster import normalized_mutual_info_score
 from GraphTools import GraphTolls, Read_Graph
-
-
+import matplotlib.pyplot as  plt 
+import networkx as nx
 
 
 
@@ -51,8 +52,8 @@ class Fast_local_Move_IG(GraphTolls) :
     def Reconstruction( self,  graph, soltion, drop_node):
           
         self.__randomcom( graph, drop_node)
-    
-        soltion = self.con_dense(graph)
+        #self.draw_communities(graph,soltion)
+        soltion = self.con_dense( graph)
                 
         return  soltion
 
@@ -107,6 +108,7 @@ class Fast_local_Move_IG(GraphTolls) :
             mod_graph = super().induced_graph( p, mod_graph, weight='weight')
             super().modifie_status( mod_graph, weight='weight')
         
+        #self.draw_communities( mod_graph, p)        
         P = super().best_sol( p_list, len(p_list)- 1)    
         super().init( graph, P, weight='weight')                                                                          
 
@@ -138,19 +140,35 @@ class Fast_local_Move_IG(GraphTolls) :
                 com_n = super().weighted_choice( list(qum.keys()), prb)
                 super().delet_node( vsele, com_befor, ngh_com.get( com_befor, 0.))
                 super().insert_node( vsele, com_n, ngh_com.get( com_n, 0.))                         
-  
-           
+          
+    
+    
+    def draw_communities( self, G, community_map, alpha = 1):
+         
+        cmap = plt.get_cmap("magma")
+        pos = nx.spring_layout(G)
+        indexed = [community_map.get(node) for node in G]
+        plt.axis("off")
+        node_size = G.number_of_nodes()      
+        nx.draw( G, with_labels=True, pos = pos, node_color = indexed, node_size = node_size*3 ,font_size = 10, font_color = 'white', font_weight = 'bold')
+        labels = nx.get_edge_attributes(G, 'weight')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=labels)
+        plt.title('(a)')
+        plt.show()
+        
+    
+                
     def Run_FMLIG ( self, graph):
         start = time.time()
-
         super().modifie_status( graph, weight='weight') 
         soltion = self.flocalmove( graph)
         print( time.time() - start)
-        best_solution = copy.copy(soltion)
+        #self.draw_communities( graph, soltion)
+        best_solution = copy.copy( soltion)
         #print(" internal ", self.internal# )
         #super().init( graph, soltion)
         Q_best = super().modularity()
-        print("q1",Q_best)
+        print( "q1", Q_best)
         T_init = 0.025 * Q_best
         T = T_init
         nb_iter = 0
@@ -161,9 +179,9 @@ class Fast_local_Move_IG(GraphTolls) :
             incumbent_solution = copy.copy(soltion)
         
             soltion, drop_nod = self.Destruction(graph)
-            
+            print(soltion)    
             soltion = self.Reconstruction( graph,soltion, drop_nod)
-             
+            #self.draw_communities(graph, soltion) 
             super().init(graph, soltion, weight = 'weight')  
         
             soltion = self.flocalmove(graph)
@@ -211,6 +229,7 @@ def de_main():
         communities = Fast_local_Move_IG( Number_iter, Beta, path, graph)
         mod,community,tim = communities.Run_FMLIG(graph) 
         #print(community)
+        communities.draw_communities(graph, community)
         Q_list.append(mod)
         Time_list.append(tim)
         #label = communities.lebel_node(community)  
