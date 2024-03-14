@@ -4,6 +4,7 @@ import sys
 import networkx as nx
 import random
 import numpy as np
+from networkx.algorithms.community import is_partition
 
 class GraphTolls:
     
@@ -15,7 +16,7 @@ class GraphTolls:
         self.Node_list = {i : i for i in graph.nodes()}
         self.Degree = dict(graph.degree())
         self.DegCom = {}
-        self.membership = { i : None for i in graph.nodes() }
+        #self.membership = { i : None for i in graph.nodes() }
         self.loops = {}
         self.internal = {}
         
@@ -109,54 +110,67 @@ class GraphTolls:
                 return key
         
         
-    def ngh_node ( self, node, com, graph ):
+    def ngh_node ( self, membership,  node, com, graph ):
         ngh_com = 0.
         for ngh, datas in graph[node].items():
             link = datas.get('weight', 1.)  
-            if  self.membership[ngh] == com:
+            if  membership[ngh] == com:
                 ngh_com += link
                              
         return ngh_com
     
-    def neigh_comm ( self, node, graph):
+    def neigh_comm ( self, membership, node, graph):
         ngh_com = {}
         for ngh, datas in graph[node].items():
-            link = float(datas.get( 'weight', 1.))
             #print("weigh", link)            
-            if  self.membership[ngh] != None and node != ngh:
-                com_id = self.membership[ngh]
+            if  node != ngh:
+                link = float(datas.get( 'weight', 1.))
+                com_id = membership[ngh]
                 ngh_com[com_id] = ngh_com.get( com_id, 0.) + link
                                                       
         return ngh_com
     
-    def boundry_node( self, graph):
+    def ngh_strcom ( self, membership, comid,  node, graph):
+        ngh_com = {}
+        for ngh, datas in graph[node].items():
+            #print("weigh", link)            
+            if  membership[ngh] != None  and  node != ngh and membership[ngh] != comid:
+                link = float(datas.get( 'weight', 1.))
+                com_id = membership[ngh]
+                ngh_com[com_id] = ngh_com.get( com_id, 0.) + link
+                                                      
+        return ngh_com
+
+    def boundry_node( self, membership, graph):
         b_node = {}
         for node in graph.nodes():
-            com = self.membership[node]
+            com = membership[node]
             for ngh,data in graph[node].items():
-                if self.membership[ngh]!= com:
+                if membership[ngh]!= com:
                     b_node[node] = self.membership[ngh]
         
         return b_node
     
-    def com_ngh_com ( self, com_id, graph):
+    def com_ngh_com ( self, membership, com_id, graph):
         com_ngh = {}
         for node in  graph.nodes(): 
-            com = self.membership[node]
+            com = membership[node]
             if  com == com_id:  
                 for ngh, datas in  graph[node].items():
                     link = float(datas.get('weight', 1.))
                     #print(link)
-                    comid = self.membership[ngh]
+                    comid = membership[ngh]
                     if comid != com_id and node != ngh:
                         com_ngh[comid] = com_ngh.get( comid, 0.) + link                      
                     
         return com_ngh
     
-    def merge_com ( self, com_id1, com_id2 ):
-        for node, com in self.membership.items():
+    def merge_com ( self, membership, com_id1, com_id2 ):
+        for node, com in membership.items():
             if com == com_id2:
-                self.membership[node] = com_id1
+                membership[node] = com_id1
+
+        return membership        
                 
     def sel_edge_btwc( self, com_id1, com_id2):
         Edg_betw = 0
@@ -183,9 +197,9 @@ class GraphTolls:
                 return random_number            
     
                          
-    def modularity( self):
+    def modularity( self, membership):
         result = 0
-        for com in set( self.membership.values()):
+        for com in set( membership.values()):
             in_degree = self.internal.get( com, 0.)
             degree = self.DegCom.get( com, 0.)
             #print(self.m)
@@ -194,9 +208,9 @@ class GraphTolls:
         return result
     
     def induced_graph( self, p, graph, weight):
-            
         ret = nx.Graph()
         ret.add_nodes_from(p.values())
+        #print(p, graph.nodes())
         for node1, node2, datas in graph.edges( data = True ):
             edge_weight = datas.get(weight, 1)
             com1 = p[node1]
@@ -206,6 +220,48 @@ class GraphTolls:
 
         return ret
     
+    
+    def check_connectivite( self, p, graph, weight= 'weight'):
+        # FUNCTION TO CHECK THE CONNECTIVITE #
+        com = set(p.values())
+        check = []
+        Ncom = {}
+        for com_id in com:
+            ret = nx.Graph()
+            nodecom = [node for node in p if p[node] == com_id]
+
+            ret.add_nodes_from(nodecom)
+            ret = graph.subgraph(nodecom)
+            if nx.is_connected(ret):
+                check.append(True)
+            else :
+                Ncom[com_id] = list(nx.connected_components(ret))
+                # RETURN DICONNECTED COMPONENTS #
+            
+        if len(check) == len(com):
+            return True
+        
+        else :
+
+            return Ncom
+        
+        
+    def check_partition( self, p, graph, weight= 'weight'):
+        # CHECK INTERSICTION OF PARTITION 
+       
+        partition = self.tarans( p)    
+       
+        if is_partition(graph, partition):
+            
+            return True        
+        else : 
+            return False    
+
+    
+            
+       
+
+    
     def modifie_status( self, graph, weight, solution = None ):
         """Initialize the status of a graph with every node in one community"""
         self.total_weight = 0
@@ -213,13 +269,13 @@ class GraphTolls:
         self.DegCom = {}
         #self.adjency = graph.adj
         self.internal = {}
-        self.membership = {}
+        membership = {}
         self.loops = {}
         self.m = graph.size(weight=weight)
         self.n = graph.number_of_nodes()
         if solution is None:
             for node in graph.nodes():
-                self.membership[node] = node
+                membership[node] = node
                 deg = float(graph.degree(node, weight='weight'))
                 if deg < 0:
                     error = "Bad graph type ({})".format(type(graph))
@@ -230,70 +286,57 @@ class GraphTolls:
                 #print(edge_data)
                 self.loops[node] = float(edge_data.get('weight', 1))
                 self.internal[node] = self.loops[node]
-        else:
-            for node in graph.nodes():
-                com = solution[node]
-                self.membership[node] = com
-                deg = float(graph.degree( node, weight = weight))
-                self.DegCom[com] = self.DegCom.get(com, 0) + deg
-                self.Degree[node] = deg
-                for neighbor, datas in self.graph[node].items():
-                    edge_weight = datas.get(weight, 1)
-                    if edge_weight <= 0:
-                        error = "Bad graph type ({})".format(type(self.graph))
-                        raise ValueError(error)                 
-                    if self.membership[neighbor] == com:
-                        if neighbor == node:
-                            inc += float( edge_weight)
-                        else:
-                            inc += float( edge_weight)/ 2.
-                
-                self.internal[com] = self.internal.get( com, 0) + inc
+       
+        return membership
     
-    def renumber( self):
+    def renumber( self , membership):
         """Renumber the values of the dictionary from 0 to n"""
         count = 0
-        ret = self.membership.copy()
+        ret = membership.copy()
         new_values = dict([])
     
-        for key in self.membership.keys():
-            value = self.membership[key]
+        for key in  membership.keys():
+            value =  membership[key]
             new_value = new_values.get(value, -1)
             if new_value == -1:
                 new_values[value] = count
                 new_value = count
                 count += 1
-            self.membership[key] = new_value
-        return self.membership
+            membership[key] = new_value
+        return  membership
         
-    def delet_node( self, node, com, weicom):
+    def delet_node( self, membership, node, com, weicom):
         
         self.DegCom[com] = float(self.DegCom.get(com, 0.) - self.Degree.get(node, 0.))
         self.internal[com] = float(self.internal.get(com, 0.) - weicom - self.loops.get(node, 0.))
-        self.membership[node] = None
+        membership[node] = None
+
+        return membership
         
-    def insert_node( self, node, com, weicom):
+    def insert_node( self, membership,  node, com, weicom):
             
         self.DegCom[com] = float(self.DegCom.get( com, 0.) + self.Degree.get( node, 0.))
         self.internal[com] = float(self.internal.get( com, 0.) + weicom + self.loops.get( node, 0.))
-        self.membership[node] = com                      
+        membership[node] = com  
+
+        return membership                    
     
     def init( self, graph, solution, weight = 'weight'):
         self.DegCom = {}
         self.internal = {}
         self.Degree= {}
-        self.membership = {}
+        membership = {}
         self.m = graph.size( weight= 'weight')
         self.n =  graph.number_of_nodes()
         self.loops = {}    
         for node in  graph.nodes():
             com = solution[node]
-            self.membership[node] = com
+            membership[node] = com
             deg = float( graph.degree( node, 'weight'))
             self.DegCom[com] = self.DegCom.get(com, 0.) + deg
             self.Degree[node] = deg
             edge_data = graph.get_edge_data(node, node, {weight: 0})
-            #self.loops[node] = float(edge_data.get(weight, 1))
+            self.loops[node] = float(edge_data.get(weight, 1))
             inc = 0.
             for neighbor, datas in graph[node].items():
                 edge_weight = datas.get( 'weight', 1.)
@@ -306,20 +349,35 @@ class GraphTolls:
                     else:
                         inc += float( edge_weight) / 2.
                 
-            self.internal[com] = self.internal.get( com, 0.) + inc
+            self.internal[com] = self.internal.get( com, 0.) + inc 
+
+        return membership
 
     def best_sol( self, dend, level):
          
         #print(dend) 
         partition = dend[0].copy()
-        #print(partition)
+        #print("papap", partition)
         for index in range( 1, level + 1):
             for node, community in partition.items():
                 partition[node] = dend[index][community]
         
         return partition
     
-         
+
+
+    def tarans ( self, clust_label):
+        clust = set(clust_label.values())
+        clusters = []
+        for i in clust:
+            cluste = set()
+            for j in clust_label:
+                if clust_label[j] == i:   
+                    cluste.add(j)
+            
+            clusters.append(cluste)
+
+        return clusters
 
 
 def Read_Graph( Path):
