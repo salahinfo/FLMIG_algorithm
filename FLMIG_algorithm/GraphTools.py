@@ -5,6 +5,10 @@ import networkx as nx
 import random
 import numpy as np
 from networkx.algorithms.community import is_partition
+import csv
+import itertools
+from collections import defaultdict
+
 
 class GraphTolls:
     
@@ -220,47 +224,55 @@ class GraphTolls:
 
         return ret
     
+    def build_reverse_mapping(self, d):
+        reverse_mapping = defaultdict(list)
+        for key, value in d.items():
+            reverse_mapping[value].append(key)
+        
+        return reverse_mapping    
+
+    def get_keys_by_value(self, reverse_mapping, target_value):
+        
+        return reverse_mapping[target_value]
     
-    def check_connectivite( self, p, graph, weight= 'weight'):
+
+
+    def check_connectivite( self, p, graph, weight = 'weight'):
         # FUNCTION TO CHECK THE CONNECTIVITE #
         com = set(p.values())
+        reverse_membership = self.build_reverse_mapping(p)
         check = []
         Ncom = {}
         for com_id in com:
             ret = nx.Graph()
-            nodecom = [node for node in p if p[node] == com_id]
-
-            ret.add_nodes_from(nodecom)
+            nodecom = self.get_keys_by_value( reverse_membership, com_id)
+            #ret.add_nodes_from(nodecom)
             ret = graph.subgraph(nodecom)
             if nx.is_connected(ret):
                 check.append(True)
             else :
-                Ncom[com_id] = list(nx.connected_components(ret))
+                lst = list(nx.connected_components(ret))
+                Ncom[com_id] = lst
+                
                 # RETURN DICONNECTED COMPONENTS #
             
         if len(check) == len(com):
             return True
-        
         else :
-
             return Ncom
         
-        
+
+
     def check_partition( self, p, graph, weight= 'weight'):
         # CHECK INTERSICTION OF PARTITION 
        
         partition = self.tarans( p)    
        
-        if is_partition(graph, partition):
+        if is_partition( graph, partition):
             
             return True        
         else : 
             return False    
-
-    
-            
-       
-
     
     def modifie_status( self, graph, weight, solution = None ):
         """Initialize the status of a graph with every node in one community"""
@@ -309,12 +321,11 @@ class GraphTolls:
         
         self.DegCom[com] = float(self.DegCom.get(com, 0.) - self.Degree.get(node, 0.))
         self.internal[com] = float(self.internal.get(com, 0.) - weicom - self.loops.get(node, 0.))
-        membership[node] = None
+        membership[node] = -1
 
         return membership
         
-    def insert_node( self, membership,  node, com, weicom):
-            
+    def insert_node( self, membership,  node, com, weicom):    
         self.DegCom[com] = float(self.DegCom.get( com, 0.) + self.Degree.get( node, 0.))
         self.internal[com] = float(self.internal.get( com, 0.) + weicom + self.loops.get( node, 0.))
         membership[node] = com  
@@ -393,4 +404,12 @@ def Read_Graph( Path):
 
     return graph 
 
-                
+
+
+def writefile(Q):
+    
+    with open('/home/yacine/Desktop/reslut_FLMIG/FOOTBALL.csv', 'w', newline='') as csvfile:    
+        writer = csv.writer(csvfile)
+        writer.writerow(Q)
+
+  

@@ -6,10 +6,10 @@ import sys
 import math
 from scipy.stats import expon
 from sklearn.metrics.cluster import normalized_mutual_info_score
-from GraphTools import GraphTolls, Read_Graph
+from GraphTools import GraphTolls, Read_Graph , writefile
 import matplotlib.pyplot as  plt 
 import networkx as nx
-
+import uuid
 
 
 class Fast_local_Move_IG(GraphTolls) :
@@ -29,16 +29,13 @@ class Fast_local_Move_IG(GraphTolls) :
 
                           
 
-    def Destruction( self, membership, graph, check = True , comid = [] ):
+    #def Destruction( self, membership, graph):
         drop_node= []
         #s = self.renumber(membership)
         membership = super().init( graph, membership , weight='weight') 
-        if check :
-            cut_len = int(len(membership)* float(self.Beta)) 
-            drop_node = random.sample( list(membership.keys()), cut_len )
-        else : 
-            drop_node = comid
-        
+        cut_len = int( len(membership)* float(self.Beta)) 
+        drop_node = random.sample( list(membership.keys()), cut_len )
+    
         for al in drop_node:
             com_id = membership[al]
             wgh = super().neigh_comm(membership, al, graph)    
@@ -48,28 +45,43 @@ class Fast_local_Move_IG(GraphTolls) :
             else:
                 com_id = super().generate_random_not_in_list(set(membership.values()))
                 membership = super().insert_node( membership, al, com_id, wgh.get( com_id, 0.))     
-   
-        return  membership, drop_node 
+                   
+    def add_unique_value_to_dict(self):
+        # Generate a random unique value
+        # If the dictionary is not empty, get the max value and add 1
+        unique_value = -1
+        
+    
+        return unique_value 
 
+    def Destruction( self, membership, graph ):
+        drop_node= []
+        #s = self.renumber(membership)
+        membership = super().init( graph, membership , weight='weight') 
+        cut_len = int( len(membership)* float( self.Beta)) 
+        drop_node = random.sample( list(membership.keys()), cut_len )
+        comm_id = 0
+        for al in drop_node:
+            com_id = membership[al]
+            wgh = super().neigh_comm( membership, al, graph)    
+            membership = super().delet_node( membership, al, com_id, wgh.get( com_id, 0.))
+            comm_id = comm_id- self.add_unique_value_to_dict()
+            membership = super().insert_node( membership, al, comm_id, wgh.get( al, 0.))
+                         
+        return  membership, drop_node 
     
     
-    def Singelton_community( self, membership, graph , compe):
+    def Singelton_community( self, membership, compe ):
         # reaffect each node in disconnected community into new comunity 
-       
         ndstr = []
         for com in compe:
             for nn  in  compe[com]:
-                com_id = super().generate_random_not_in_list(set(membership.values()))
+                com_id = max(membership.values()) + 1
                 for node in nn:
                     membership[node] = com_id
                     ndstr.append(node)
-                  
-                    
-                                                                              
+                                                                                                
         return  membership , ndstr
-
-    
-    
 
     def Reconstruction( self,  graph, soltion, drop_node):
           
@@ -92,30 +104,27 @@ class Fast_local_Move_IG(GraphTolls) :
             best_com = com_node
             best_increase = 0
             for com, dnc in neigh_communities.items():
-                Delat_Q = resolution * dnc - self.DegCom.get(com, 0.) * degc_totw
+                Delat_Q = resolution * dnc - self.DegCom.get( com, 0.) * degc_totw
                 if Delat_Q > best_increase:
                     best_increase = Delat_Q
                     best_com = com
-       
-                            
+                
             membership = super().insert_node( membership, node, best_com, neigh_communities.get( best_com, 0.))
             if best_com != com_node:
                 for veg in graph[node]:
                     if membership[veg] != membership[node] :    
                         Nodelist.append(veg)
 
-            
-            
         return membership
 
 
-    def con_dense(self, graph, soltion):
+    def con_dense( self, graph, soltion ):
         p_list = []
         cc = super().check_connectivite( soltion, graph)
         if cc != True :
-            soltion,  l  = self.Singelton_community( soltion, graph, cc)
+            soltion,  l  = self.Singelton_community( soltion,  cc)
 
-        n_mod = super().modularity(soltion)
+        n_mod = super().modularity( soltion)
         mod_graph = graph.copy()
         p = super().renumber(soltion)
         p_list.append(p)
@@ -123,23 +132,21 @@ class Fast_local_Move_IG(GraphTolls) :
         soltion = super().modifie_status( mod_graph, weight = 'weight')
         Q_val = n_mod
         while True :
-
             solution = self.flocalmove( mod_graph, soltion)
             cc = False
             # REFINE THE DISCONNECTED COMUUNITY 
             while cc != True :
                 cc = super().check_connectivite( solution, mod_graph)
                 if cc != True:
-                    solution , nlst  = self.Singelton_community( solution, mod_graph, cc)
-                    solution = self.bestcon(mod_graph, solution, nlst)
+                    solution , nlst  = self.Singelton_community( solution, cc)
+                    solution = self.bestcon( mod_graph, solution, nlst)
                 
             n_mod = super().modularity(solution)
             if n_mod - Q_val < 0.000000001 :
-
                 break
           
             soltion = super().renumber(solution)
-            p_list.append(soltion)
+            p_list.append( soltion)
             Q_val = n_mod
             mod_graph = super().induced_graph( soltion, mod_graph, weight='weight')
             soltion = super().modifie_status( mod_graph, weight='weight')
@@ -178,7 +185,7 @@ class Fast_local_Move_IG(GraphTolls) :
     def __randomcom ( self , graph, membership, drop_node):
 
         membership = super().init( graph, membership, weight = 'weight') 
-        random.shuffle(drop_node)
+        random.shuffle( drop_node)
         for vsele in  drop_node:    
             #degree = self.Degree[vsele]
             qum={}
@@ -236,16 +243,18 @@ class Fast_local_Move_IG(GraphTolls) :
         T_init = 0.025 * Q_best
         T = T_init
         nb_iter = 0
-        status_list = []
+        last_bm = Q_best
         check = True
         comid = []
+        acworse_count = 0 
         while nb_iter < self.Nb:
             Q1 = super().modularity(soltion)
             
             incumbent_solution = copy.copy(soltion)
-        
+            
+            print("befoor")
             soltion, drop_nod = self.Destruction( incumbent_solution, graph )
-            #print(soltion)    
+            print("after")  
             soltion = self.Reconstruction( graph, soltion, drop_nod)
             soltion = super().init( graph, soltion, weight = 'weight')  
             #cc = super().check_connectivite( soltion, graph)
@@ -258,7 +267,7 @@ class Fast_local_Move_IG(GraphTolls) :
                 #soltion, k, l  = self.Singelton_community( soltion, graph, cc)
 
             Q2 = super().modularity( soltion)
-            #print("Q2", Q2, " number of iteration", nb_iter)      
+            print("Q2", Q2, " number of iteration", nb_iter)      
             if Q2 > Q_best:
                 best_solution = copy.copy(soltion)
                 Q_best = Q2
@@ -268,6 +277,7 @@ class Fast_local_Move_IG(GraphTolls) :
                 soltion = copy.copy(incumbent_solution)
                 Q1 = Q2
                 T = T_init
+                acworse_count = acworse_count + 1
 
             elif Q2  >=  Q1:
                 T = T_init
@@ -276,12 +286,16 @@ class Fast_local_Move_IG(GraphTolls) :
                 
                 T = T*0.9
             
-          
+            if acworse_count < 5 and (Q_best - last_bm < 0.00000005):
+                break
+            last_bm = Q_best
+
             nb_iter = nb_iter + 1
         
         #print(status_list)
         end = time.time()
         t = end - start
+        
  
         return Q_best, best_solution, t
         
@@ -300,13 +314,13 @@ def de_main():
     while nb_run < int(sys.argv[5]) :
         #print("rb",nb_run)
         communities = Fast_local_Move_IG( Number_iter, Beta, path, graph)
-        mod,community,tim = communities.Run_FMLIG(graph) 
+        mod, community, tim = communities.Run_FMLIG(graph) 
         #print(community)
         #communities.draw_communities(graph, community)
-        g = communities.check_connectivite( community,  graph)
-        if g == True :
-            print("valid solution")
-            
+        #g = communities.check_connectivite( community,  graph)
+        #if g == True :
+            #print("valid solution")
+         
         Q_list.append(mod)
         Time_list.append(tim)
         #label = communities.lebel_node(community)  
@@ -324,6 +338,7 @@ def de_main():
         nb_run = nb_run +1
             
     if sys.argv[4] != 'None':
+        writefile(Q_list)
         Q_avg = communities.avg(Q_list)
         Q_max = communities.max(Q_list)
         Q_std = communities.stdev(Q_list)
@@ -331,6 +346,7 @@ def de_main():
         time_run = communities.avg(Time_list)
         return NMI_max, Q_max, Q_avg, Q_std, time_run     
     elif sys.argv[4] == 'None':
+        writefile(Q_list)
         Q_avg = communities.avg(Q_list)
         Q_max = communities.max(Q_list)
         Q_std = communities.stdev(Q_list)
