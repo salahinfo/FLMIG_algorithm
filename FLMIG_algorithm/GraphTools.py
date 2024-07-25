@@ -193,7 +193,8 @@ class GraphTolls:
         for i in range(len(weights)):
             if x < weights[i]:
                 return objects[i]
-               
+            
+           
     def generate_random_not_in_list( self, my_list):
         while True:
             random_number = random.randint( 0, self.m)
@@ -364,8 +365,7 @@ class GraphTolls:
 
         return membership
 
-    def best_sol( self, dend, level):
-         
+    def best_sol( self, dend, level): 
         #print(dend) 
         partition = dend[0].copy()
         #print("papap", partition)

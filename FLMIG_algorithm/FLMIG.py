@@ -65,9 +65,10 @@ class Fast_local_Move_IG(GraphTolls) :
             com_id = membership[al]
             wgh = super().neigh_comm( membership, al, graph)    
             membership = super().delet_node( membership, al, com_id, wgh.get( com_id, 0.))
-            comm_id = comm_id- self.add_unique_value_to_dict()
+            comm_id = comm_id+ self.add_unique_value_to_dict()
             membership = super().insert_node( membership, al, comm_id, wgh.get( al, 0.))
-                         
+
+        #print(membership)                 
         return  membership, drop_node 
     
     
@@ -317,9 +318,9 @@ def de_main():
         mod, community, tim = communities.Run_FMLIG(graph) 
         #print(community)
         #communities.draw_communities(graph, community)
-        #g = communities.check_connectivite( community,  graph)
-        #if g == True :
-            #print("valid solution")
+        g = communities.check_connectivite( community,  graph)
+        if g == True :
+            print("valid solution")
          
         Q_list.append(mod)
         Time_list.append(tim)
