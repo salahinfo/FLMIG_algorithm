@@ -9,9 +9,8 @@ from sklearn.metrics.cluster import normalized_mutual_info_score
 from GraphTools import GraphTolls, Read_Graph , writefile
 import matplotlib.pyplot as  plt 
 import networkx as nx
-import uuid
 
-
+theta = 0.00000005
 class Fast_local_Move_IG(GraphTolls) :
     def __init__( self, Nb, Beta,path, graph):    
         self.Nb = Nb
@@ -86,8 +85,9 @@ class Fast_local_Move_IG(GraphTolls) :
 
     def Reconstruction( self,  graph, soltion, drop_node):
           
-        soltion = self.__randomcom( graph, soltion, drop_node)
-        soltion = self.con_dense( graph, soltion)
+        #soltion = self.__randomcom( graph, soltion, drop_node)
+        soltion = self.flocalmove(graph, soltion, 1)
+        soltion = self.Plouvaine( graph, soltion)
                 
         return  soltion
 
@@ -119,7 +119,7 @@ class Fast_local_Move_IG(GraphTolls) :
         return membership
 
 
-    def con_dense( self, graph, soltion ):
+    def Plouvaine( self, graph, soltion ):
         p_list = []
         cc = super().check_connectivite( soltion, graph)
         if cc != True :
@@ -287,7 +287,7 @@ class Fast_local_Move_IG(GraphTolls) :
                 
                 T = T*0.9
             
-            if acworse_count < 5 and (Q_best - last_bm < 0.00000005):
+            if acworse_count < 5 and (Q_best - last_bm < theta):
                 break
             last_bm = Q_best
 

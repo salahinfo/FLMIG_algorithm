@@ -8,7 +8,10 @@ from networkx.algorithms.community import is_partition
 import csv
 import itertools
 from collections import defaultdict
-
+from multiprocessing import Pool
+import time
+import itertools 
+import functools
 
 class GraphTolls:
     
@@ -238,26 +241,62 @@ class GraphTolls:
     
 
 
+    def test_starmap(self, lst, graph):
+        result = []
+        pool = Pool(processes=10)
+        print("lsttttt", lst)
+        res = pool.starmap(functools.partial(self.muulX, graph ), lst, chunksize=2)
+        print(list(res))
+        result.append(res)
+        pool.close()
+        pool.join()
+        return result
+    
+    def test_apply(self, lst, graph):
+        result = []
+        pool = Pool(processes=10)
+        #print(lst)
+       # for y in lst:
+        res = pool.map(self.muulX, lst)
+        result.append(res)
+        
+        pool.close()
+        pool.join()
+        
+        return result
+
+    def muulX(self, nodecom, graph):
+        print(nodecom)
+        ret = graph.subgraph(nodecom)
+        Ncom = {}
+        lst = []
+        if nx.is_connected(ret):
+           
+            return True 
+
+        else :
+            
+            ss = list( nx.connected_components(ret))
+            return ss
+        
     def check_connectivite( self, p, graph, weight = 'weight'):
         # FUNCTION TO CHECK THE CONNECTIVITE #
         com = set(p.values())
         reverse_membership = self.build_reverse_mapping(p)
-        check = []
+        #check = []
         Ncom = {}
+        lst = []
         for com_id in com:
             ret = nx.Graph()
             nodecom = self.get_keys_by_value( reverse_membership, com_id)
+            lst.append(tuple(nodecom))
             #ret.add_nodes_from(nodecom)
-            ret = graph.subgraph(nodecom)
-            if nx.is_connected(ret):
-                check.append(True)
-            else :
-                lst = list(nx.connected_components(ret))
-                Ncom[com_id] = lst
+            
                 
                 # RETURN DICONNECTED COMPONENTS #
-            
+        check = self.test_starmap(lst,graph) 
         if len(check) == len(com):
+            print(True)
             return True
         else :
             return Ncom
